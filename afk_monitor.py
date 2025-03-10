@@ -22,7 +22,7 @@ def fallover(message):
 # Internals
 DEBUG_MODE = False
 DISCORD_TEST = False
-VERSION = "250309"
+VERSION = "250310"
 GITHUB_LINK = "https://github.com/PsiPab/ED-AFK-Monitor"
 DUPE_MAX = 5
 FUEL_LOW = 0.2		# 20%
@@ -30,7 +30,7 @@ FUEL_CRIT = 0.1		# 10%
 SHIPS_EASY = ['Adder', 'Asp Explorer', 'Asp Scout', 'Cobra Mk III', 'Cobra Mk IV', 'Diamondback Explorer', 'Diamondback Scout', 'Eagle', 'Imperial Courier', 'Imperial Eagle', 'Krait Phantom', 'Sidewinder', 'Viper Mk III', 'Viper Mk IV']
 SHIPS_HARD = ['Alliance Crusader', 'Alliance Challenger', 'Alliance Chieftain', 'Anaconda', 'Federal Assault Ship', 'Federal Dropship', 'Federal Gunship', 'Fer-de-Lance', 'Imperial Clipper', 'Krait MK II', 'Python', 'Vulture', 'Type-10 Defender']
 BAIT_MESSAGES = ['$Pirate_ThreatTooHigh', '$Pirate_NotEnoughCargo', '$Pirate_OnNoCargoFound']
-LOGLEVEL_DEFAULTS = {'ScanEasy': 1, 'ScanHard': 2, 'KillEasy': 2, 'KillHard': 2, 'FighterHull': 2, 'FighterDown': 3, 'ShipShields': 3, 'ShipHull': 3, 'Died': 3, 'CargoLost': 3, 'BaitValueLow': 2, 'FuelLow': 2, 'FuelCritical': 3, 'Missions': 2, 'MissionsAll': 3, 'Reports': 2, 'Inactivity': 3}
+LOGLEVEL_DEFAULTS = {'ScanEasy': 1, 'ScanHard': 2, 'KillEasy': 2, 'KillHard': 2, 'FighterHull': 2, 'FighterDown': 3, 'ShipShields': 3, 'ShipHull': 3, 'Died': 3, 'CargoLost': 3, 'BaitValueLow': 2, 'FuelLow': 2, 'FuelCritical': 3, 'Missions': 2, 'MissionsAll': 3, 'SummaryKills': 2, 'SummaryBounties': 1, 'Inactivity': 3}
 
 # Load config file
 if getattr(sys, 'frozen', False) and hasattr(sys, '_MEIPASS'):
@@ -95,12 +95,14 @@ class Instance:
 		self.lastkill = 0
 		self.killstime = 0
 		self.kills = 0
+		self.bounties = 0
 
 	def reset(self):
 		self.scans = []
 		self.lastkill = 0
 		self.killstime = 0
 		self.kills = 0
+		self.bounties = 0
 
 class Tracking():
 	def __init__(self):
@@ -237,6 +239,7 @@ def processevent(line):
 		case 'Bounty':
 			session.scans.clear()
 			session.kills +=1
+			session.bounties += this_json['Rewards'][0]['Reward']
 			thiskill = logtime
 			killtime_t = ''
 			killtime_d = ''
@@ -263,9 +266,13 @@ def processevent(line):
 			if session.kills % 10 == 0 and this_json['event'] == 'Bounty':
 				avgseconds = session.killstime / (session.kills - 1)
 				kills_hour = round(3600 / avgseconds, 1)
-				log = getloglevel('Reports') if kills_hour > setting_lowkillrate else getloglevel('Reports')+1
+				avgbounty = session.bounties // session.kills
+				bounties_hour = 3600 // (session.killstime / session.bounties)
+				log = getloglevel('SummaryKills') if kills_hour > setting_lowkillrate else getloglevel('SummaryKills')+1
 				logevent(msg_term=f'Session kills: {session.kills} (Avg: {time_format(avgseconds)} | {kills_hour}/h)',
 						emoji='📝', timestamp=logtime, loglevel=log)
+				logevent(msg_term=f'Session bounties: {session.bounties:,} cr (Avg: {avgbounty:,}/kill | {bounties_hour:,}/h)',
+						emoji='📝', timestamp=logtime, loglevel=getloglevel('SummaryBounties'))
 		case 'MissionRedirected' if 'Mission_Massacre' in this_json['Name']:
 			track.missionredirects += 1
 			if track.missions:

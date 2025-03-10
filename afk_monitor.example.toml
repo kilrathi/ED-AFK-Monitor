@@ -45,7 +45,8 @@ FuelLow = 2
 FuelCritical = 3
 Missions = 2
 MissionsAll = 3
-Reports = 2
+SummaryKills = 2
+SummaryBounties = 1
 Inactivity = 3
 
 # Custom profiles (advanced)
