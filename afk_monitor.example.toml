@@ -69,3 +69,8 @@ Inactivity = 3          # Warning of no recent journal activity
 # Loading the above with {afk_monitor.py -p MyAltProfile} will override those two settings
 # This feature is most useful for those with multiple accounts or PCs
 # Note: profile, category and setting names are all case-sensitive
+
+[Telegram]
+BotToken = '' # Bot token from BotFather
+
+ChatID = 0 # start a chat with @userinfobot on Telegram and type /start to get your ID

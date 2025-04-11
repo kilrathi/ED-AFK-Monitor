@@ -15,6 +15,13 @@ except ImportError:
 	discord_enabled = False
 	print('Discord.py unavailable - operating with terminal output only\n')
 
+try:
+	import requests
+	telegram_enabled = True
+except ImportError:
+	telegram_enabled = False
+	print('Requests library unavailable - Telegram support disabled\n')
+
 def fallover(message):
 	print(message)
 	if sys.argv[0].count('\\') > 1: input('Press ENTER to exit')
@@ -54,10 +61,13 @@ print(f"{Col.CYAN}{'='*len(title)}{Col.END}\n")
 if os.name=='nt': ctypes.windll.kernel32.SetConsoleTitleW(f'ED AFK Monitor v{VERSION}')
 
 # Load config file
-if getattr(sys, 'frozen', False) and hasattr(sys, '_MEIPASS'):
-	configfile = Path(__file__).parents[1] / 'afk_monitor.toml'
+if getattr(sys, 'frozen', False):  # Check if running under PyInstaller
+	configfile = Path(os.getcwd()) / 'afk_monitor.toml'
 else:
 	configfile = Path(__file__).parent / 'afk_monitor.toml'
+
+print(f'{Col.YELL}Config file:{Col.END} {configfile}')
+
 if configfile.is_file():
 	with open(configfile, "rb") as f:
 		config = tomllib.load(f)
@@ -75,6 +85,7 @@ parser.add_argument('-w', '--webhook', help='Override for Discord webhook URL')
 parser.add_argument('-m', '--missions', type=int, help='Set number of missions remaining')
 parser.add_argument('-t', '--test', action='store_true', default=None, help='Re-routes Discord messages to terminal')
 parser.add_argument('-d', '--debug', action='store_true', default=None, help='Print information for debugging')
+parser.add_argument('--telegram-token', help='Override for Telegram bot token')
 
 args = parser.parse_args()
 
@@ -103,6 +114,8 @@ discord_webhook = args.webhook if args.webhook is not None else getconfig('Disco
 discord_user = getconfig('Discord', 'UserID', 0)
 discord_timestamp = getconfig('Discord', 'Timestamp', True)
 discord_identity = getconfig('Discord', 'Identity', True)
+telegram_bot_token = args.telegram_token if args.telegram_token is not None else getconfig('Telegram', 'BotToken', '')
+telegram_chat_id = getconfig('Telegram', 'ChatID', '')
 loglevel = {}
 for level in LOGLEVEL_DEFAULTS:
 	loglevel[level] = getconfig('LogLevels', level, LOGLEVEL_DEFAULTS[level])
@@ -218,6 +231,9 @@ print(f'{Col.YELL}Journal file:{Col.END} {journal_file}')
 if profile: print(f'{Col.YELL}Config profile:{Col.END} {profile}')
 print('\nStarting... (Press Ctrl+C to stop)\n')
 
+if telegram_enabled:
+	print('Telegram support enabled\n')
+
 # Check webhook appears valid before starting
 reg = r'^https:\/\/(?:canary\.|ptb\.)?discord(?:app)?\.com\/api\/webhooks\/\d+\/[A-z0-9_-]+$'
 if discord_enabled and re.search(reg, discord_webhook):
@@ -225,10 +241,10 @@ if discord_enabled and re.search(reg, discord_webhook):
 elif discord_enabled:
 	discord_enabled = False
 	discord_test = False
-	print('Discord webhook missing or invalid - operating with terminal output only\n')
+	print('Discord webhook missing or invalid\n')
 
 # Send a webhook message or (don't) die trying
-def discordsend(message=''):
+def sendmessage(message=''):
 	if discord_enabled and message and not discord_test:
 		try:
 			if discord_identity:
@@ -236,9 +252,19 @@ def discordsend(message=''):
 			else:
 				webhook.send(content=message)
 		except Exception as e:
-			print(f"Webhook send went wrong: {e}")
+			print(f"Discord webhook send went wrong: {e}")
 	elif discord_enabled and message and discord_test:
 		print(f'{Col.WHITE}DISCORD:{Col.END} {message}')
+	
+	if telegram_enabled and message and telegram_bot_token and telegram_chat_id:
+		try:
+			url = f"https://api.telegram.org/bot{telegram_bot_token}/sendMessage"
+			payload = {"chat_id": telegram_chat_id, "text": message}
+			response = requests.post(url, json=payload)
+			if response.status_code != 200:
+				print(f"Telegram send went wrong: {response.text}")
+		except Exception as e:
+			print(f"Telegram send went wrong: {e}")
 
 # Log events
 def logevent(msg_term, msg_discord=None, emoji='', timestamp=None, loglevel=2):
@@ -250,7 +276,7 @@ def logevent(msg_term, msg_discord=None, emoji='', timestamp=None, loglevel=2):
 	logtime = datetime.strftime(logtime, '%H:%M:%S')
 	if loglevel > 0 and not discord_test: print(f'[{logtime}]{emoji} {msg_term}')
 	track.logged +=1
-	if discord_enabled and loglevel > 1:
+	if (discord_enabled or telegram_enabled) and loglevel > 1:
 		if track.dupemsg == msg_term:
 			track.duperepeats += 1
 		else:
@@ -261,9 +287,9 @@ def logevent(msg_term, msg_discord=None, emoji='', timestamp=None, loglevel=2):
 		ping = f' <@{discord_user}>' if loglevel > 2 and track.duperepeats == 1 else ''
 		logtime = f' {{{logtime}}}' if discord_timestamp else ''
 		if track.duperepeats <= DUPE_MAX:
-			discordsend(f'{emoji} {discord_message}{logtime}{ping}')
+			sendmessage(f'{emoji} {discord_message}{logtime}{ping}')
 		elif not track.dupewarn:
-			discordsend(f'⏸️ **Suppressing further duplicate messages**{logtime}')
+			sendmessage(f'⏸️ **Suppressing further duplicate messages**{logtime}')
 			track.dupewarn = True
 	track.inactivitywarn = True
 
@@ -548,7 +574,7 @@ def header():
 	print('\nStarting... (Press Ctrl+C to stop)\n')
 
 if __name__ == '__main__':
-	discordsend(f'# 💥 ED AFK Monitor 💥\n-# by CMDR PSIPAB ([v{VERSION}]({GITHUB_LINK}))')
+	sendmessage(f'# 💥 ED AFK Monitor 💥\n-# by CMDR PSIPAB ([v{VERSION}]({GITHUB_LINK}))')
 	logevent(msg_term=f'Monitor started ({journal_file})',
 			msg_discord=f'**Monitor started** ({journal_file})',
 			emoji='📖', loglevel=2)
