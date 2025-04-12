@@ -5,8 +5,6 @@
 JournalFolder = ''
 # UseUTC = false (default) uses local timezone, set true for UTC (in-game time)
 UseUTC = false
-# MissionTotal specifies the number of mission completions required to trigger log level 'MissionsAll'
-MissionTotal = 20
 # LowKillRate is a kills/hour threshold; if average drops below, log level 'Reports' is raised by 1 (Default: 20, 0 to disable)
 LowKillRate = 20
 # InactivityMax is time in minutes between journal updates before logging a warning (Default: 15, 0 to disable)

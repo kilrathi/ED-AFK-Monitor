@@ -23,7 +23,7 @@ def fallover(message):
 # Internals
 DEBUG_MODE = False
 DISCORD_TEST = False
-VERSION = "250329"
+VERSION = "250412"
 GITHUB_LINK = "https://github.com/PsiPab/ED-AFK-Monitor"
 DUPE_MAX = 5
 MAX_FILES = 10
@@ -72,7 +72,7 @@ parser.add_argument('-p', '--profile', help='Custom profile for config settings'
 parser.add_argument('-f', '--fileselect', action='store_true', default=None, help='Show list of recent journals to chose from')
 parser.add_argument('-j', '--journal', help='Override for path to journal folder')
 parser.add_argument('-w', '--webhook', help='Override for Discord webhook URL')
-parser.add_argument('-m', '--missions', type=int, help='Set number of missions remaining')
+parser.add_argument('-r', '--resetsession', action='store_true', default=None, help='Reset session stats after preloading')
 parser.add_argument('-t', '--test', action='store_true', default=None, help='Re-routes Discord messages to terminal')
 parser.add_argument('-d', '--debug', action='store_true', default=None, help='Print information for debugging')
 
@@ -92,10 +92,8 @@ profile = args.profile if args.profile is not None else None
 setting_fileselect = args.fileselect if args.fileselect is not None else False
 setting_journal = args.journal if args.journal is not None else getconfig('Settings', 'JournalFolder')
 setting_utc = getconfig('Settings', 'UseUTC', False)
-setting_fueltank = getconfig('Settings', 'FuelTank', 64)
 setting_lowkillrate = getconfig('Settings', 'LowKillRate', 20)
 setting_inactivitymax = getconfig('Settings', 'InactivityMax', 15)
-setting_missions = args.missions if args.missions is not None else getconfig('Settings', 'MissionTotal', 20)
 setting_bountyfaction = getconfig('Settings', 'BountyFaction', True)
 setting_bountyvalue = getconfig('Settings', 'BountyValue', False)
 setting_dynamictitle = getconfig('Settings', 'DynamicTitle', True)
@@ -111,9 +109,9 @@ debug_mode = args.debug if args.debug is not None else DEBUG_MODE
 
 def debug(message):
 	if debug_mode:
-		print(f'[Debug] {message}')
+		print(f'{Col.WHITE}[Debug]{Col.END} {message}')
 
-debug(f'Arguments: {args}\nConfig: {config}\nJournal: {setting_journal}\nWebhook: {discord_webhook}\nMissions: {setting_missions}\nLog levels: {loglevel}')
+debug(f'Arguments: {args}\nConfig: {config}\nJournal: {setting_journal}\nWebhook: {discord_webhook}\nLog levels: {loglevel}')
 
 class Instance:
 	def __init__(self):
@@ -137,6 +135,7 @@ class Instance:
 
 class Tracking():
 	def __init__(self):
+		self.fuelcapacity = 64
 		self.totalkills = 0
 		self.totaltime = 0
 		self.totalbounties = 0
@@ -152,6 +151,7 @@ class Tracking():
 		self.dupewarn = False
 		self.lastactivity = None
 		self.inactivitywarn = True
+		self.preloading = True
 
 session = Instance()
 track = Tracking()
@@ -225,7 +225,7 @@ if discord_enabled and re.search(reg, discord_webhook):
 elif discord_enabled:
 	discord_enabled = False
 	discord_test = False
-	print('Discord webhook missing or invalid - operating with terminal output only\n')
+	print(f'{Col.WHITE}Info:{Col.END} Discord webhook missing or invalid - operating with terminal output only\n')
 
 # Send a webhook message or (don't) die trying
 def discordsend(message=''):
@@ -236,13 +236,15 @@ def discordsend(message=''):
 			else:
 				webhook.send(content=message)
 		except Exception as e:
-			print(f"Webhook send went wrong: {e}")
+			print(f"{Col.WHITE}Discord:{Col.END} Webhook send error: {e}")
 	elif discord_enabled and message and discord_test:
 		print(f'{Col.WHITE}DISCORD:{Col.END} {message}')
 
 # Log events
 def logevent(msg_term, msg_discord=None, emoji='', timestamp=None, loglevel=2):
 	loglevel = int(loglevel)
+	if track.preloading:
+		loglevel = 1 if loglevel > 0 else 0
 	if timestamp:
 		logtime = timestamp if setting_utc else timestamp.astimezone()
 	else:
@@ -361,21 +363,17 @@ def processevent(line):
 			case 'MissionRedirected' if 'Mission_Massacre' in this_json['Name']:
 				track.missionredirects += 1
 				msg = 'a mission'
-				if track.missions:
-					missions = f'{track.missionredirects}/{len(track.missionsactive)}'
-					if len(track.missionsactive) != track.missionredirects:
-						log = getloglevel('Missions')
-					else:
-						log = getloglevel('MissionsAll')
-						msg = 'all missions!'
+				missions = f'{track.missionredirects}/{len(track.missionsactive)}'
+				if len(track.missionsactive) != track.missionredirects:
+					log = getloglevel('Missions')
 				else:
-					missions = f'x{track.missionredirects}'
-					log = getloglevel('Missions') if track.missionredirects != setting_missions else getloglevel('MissionsAll')
+					log = getloglevel('MissionsAll')
+					msg = 'all missions!'
 				logevent(msg_term=f'Completed kills for {msg} ({missions})',
 						emoji='✅', timestamp=logtime, loglevel=log)
 				updatetitle()
-			case 'ReservoirReplenished' if this_json['FuelMain'] < setting_fueltank * FUEL_LOW:
-				if this_json['FuelMain'] < setting_fueltank * FUEL_CRIT:
+			case 'ReservoirReplenished' if this_json['FuelMain'] < track.fuelcapacity * FUEL_LOW:
+				if this_json['FuelMain'] < track.fuelcapacity * FUEL_CRIT:
 					col = Col.BAD
 					fuel_loglevel = getloglevel('FuelCritical')
 					level = 'critical!'
@@ -383,7 +381,7 @@ def processevent(line):
 					col = Col.WARN
 					fuel_loglevel = getloglevel('FuelLow')
 					level = 'low'
-				fuelremaining = round((this_json['FuelMain'] / setting_fueltank) * 100)
+				fuelremaining = round((this_json['FuelMain'] / track.fuelcapacity) * 100)
 				logevent(msg_term=f'{col}Fuel reserves {level}{Col.END} (Remaining: {fuelremaining}%)',
 						msg_discord=f'**Fuel reserves {level}** (Remaining: {fuelremaining}%)',
 						emoji='⛽', timestamp=logtime, loglevel=fuel_loglevel)
@@ -431,6 +429,9 @@ def processevent(line):
 						msg_discord=f"**Loaded CMDR {this_json['Commander']}** ({ship}) [{mode}]",
 						emoji='🔄', timestamp=logtime, loglevel=2)
 				session.reset()
+			case 'Loadout':
+				track.fuelcapacity = this_json['FuelCapacity']['Main'] if this_json['FuelCapacity']['Main'] >= 2 else 64
+				debug(f"Fuel capacity: {track.fuelcapacity}")
 			case 'SupercruiseDestinationDrop' if '$MULTIPLAYER' in this_json['Type']:
 				logevent(msg_term=f"Dropped at {this_json['Type_Localised']}",
 						emoji='🚀', timestamp=logtime, loglevel=2)
@@ -509,9 +510,7 @@ def num_format(number: int) -> str:
 
 def updatetitle():
 	# Title (Windows-only)
-	if setting_dynamictitle and os.name=='nt':
-		missionsactive = len(track.missionsactive) if track.missions else '-'
-
+	if setting_dynamictitle and os.name=='nt' and not track.preloading:
 		if session.kills > 1 and session.killstime > 0:
 			kills_hour = round(3600 / (session.killstime / (session.kills - 1)), 1)
 			if session.kills < 20:
@@ -519,7 +518,7 @@ def updatetitle():
 		else:
 			kills_hour = '-'
 
-		ctypes.windll.kernel32.SetConsoleTitleW(f'EDAFKM 🎯{track.missionredirects}/{missionsactive} 💥{kills_hour}/h')
+		ctypes.windll.kernel32.SetConsoleTitleW(f'EDAFKM 🎯{track.missionredirects}/{len(track.missionsactive)} 💥{kills_hour}/h')
 
 def shutdown():
 	if track.totalkills > 1:
@@ -548,18 +547,30 @@ def header():
 	print('\nStarting... (Press Ctrl+C to stop)\n')
 
 if __name__ == '__main__':
-	discordsend(f'# 💥 ED AFK Monitor 💥\n-# by CMDR PSIPAB ([v{VERSION}]({GITHUB_LINK}))')
-	logevent(msg_term=f'Monitor started ({journal_file})',
-			msg_discord=f'**Monitor started** ({journal_file})',
-			emoji='📖', loglevel=2)
-	
-	track.lastactivity = datetime.now()
-	
-	# Open journal from end and watch for new lines
-	with open(journal_dir / journal_file, encoding="utf-8") as file:
-		file.seek(0, 2)
+	try:
+		# Journal preloading
+		with open(journal_dir / journal_file, encoding="utf-8") as file:
+			for line in file:
+				processevent(line)
+		track.preloading = False
+		if args.resetsession:
+			session.reset()
+			logevent(msg_term=f'Session stats reset',
+					emoji='🔄', loglevel=1)
+		else:
+			updatetitle()
 
-		try:
+		# Send Discord startup
+		discordsend(f'# 💥 ED AFK Monitor 💥\n-# by CMDR PSIPAB ([v{VERSION}]({GITHUB_LINK}))')
+		logevent(msg_term=f'Monitor started ({journal_file})',
+				msg_discord=f'**Monitor started** ({journal_file})',
+				emoji='📖', loglevel=2)
+		
+		# Open journal from end and watch for new lines
+		track.lastactivity = datetime.now()
+		with open(journal_dir / journal_file, encoding="utf-8") as file:
+			file.seek(0, 2)
+
 			while True:
 				line = file.readline()
 				if not line:
@@ -573,11 +584,12 @@ if __name__ == '__main__':
 				processevent(line)
 				track.lastactivity = datetime.now()
 
-		except (KeyboardInterrupt, SystemExit):
-			shutdown()
-			if sys.argv[0].count('\\') > 1:
-				input('\nPress ENTER to exit')	# This is *still* horrible
-				sys.exit()
-		except Exception as e:
-			print(f"{Col.WHITE}Warning:{Col.END} Journal read went wrong: {e}")
-			input("Press ENTER to exit")
+	except (KeyboardInterrupt, SystemExit):
+		shutdown()
+		debug(f'\nTrack: {track.__dict__}')
+		if sys.argv[0].count('\\') > 1:
+			input('\nPress ENTER to exit')	# This is *still* horrible
+			sys.exit()
+	except Exception as e:
+		print(f"{Col.WHITE}Warning:{Col.END} Something went wrong: {e}")
+		input("Press ENTER to exit")
