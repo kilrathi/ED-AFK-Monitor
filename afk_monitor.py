@@ -13,7 +13,7 @@ try:
 	discord_enabled = True
 except ImportError:
 	discord_enabled = False
-	print('Discord.py unavailable - operating with terminal output only\n')
+	print('discord-webhook unavailable - operating with terminal output only\n')
 
 def fallover(message):
 	print(message)
@@ -23,7 +23,7 @@ def fallover(message):
 # Internals
 DEBUG_MODE = False
 DISCORD_TEST = False
-VERSION = "250413"
+VERSION = "250506"
 GITHUB_LINK = "https://github.com/PsiPab/ED-AFK-Monitor"
 DUPE_MAX = 5
 MAX_FILES = 10
@@ -98,6 +98,7 @@ setting_bountyfaction = getconfig('Settings', 'BountyFaction', True)
 setting_bountyvalue = getconfig('Settings', 'BountyValue', False)
 setting_dynamictitle = getconfig('Settings', 'DynamicTitle', True)
 discord_webhook = args.webhook if args.webhook is not None else getconfig('Discord', 'WebhookURL', '')
+discord_forumchannel = getconfig('Discord', 'ForumChannel', False)
 discord_user = getconfig('Discord', 'UserID', 0)
 discord_timestamp = getconfig('Discord', 'Timestamp', True)
 discord_identity = getconfig('Discord', 'Identity', True)
@@ -225,6 +226,11 @@ if discord_enabled and re.search(reg, discord_webhook):
 	if discord_identity:
 		webhook.username = "ED AFK Monitor"
 		webhook.avatar_url = "https://cdn.discordapp.com/attachments/1339930614064877570/1354083225923883038/t10.png"
+	if discord_forumchannel:
+		journal_start = datetime.fromisoformat(journal_file[8:-7])
+		journal_start = datetime.strftime(journal_start, '%Y-%m-%d %H:%M:%S')
+		webhook.thread_name = journal_start
+		debug(f'webhook.thread_name: {webhook.thread_name}')
 elif discord_enabled:
 	discord_enabled = False
 	discord_test = False
@@ -236,6 +242,10 @@ def discordsend(message=''):
 		try:
 			webhook.content = message
 			webhook.execute()
+			if discord_forumchannel and webhook.thread_name and not webhook.thread_id:
+				webhook.thread_name = None
+				webhook.thread_id = webhook.id
+				debug(f'webhook.thread_id: {webhook.thread_id}')
 		except Exception as e:
 			print(f"{Col.WHITE}Discord:{Col.END} Webhook send error: {e}")
 	elif discord_enabled and message and discord_test:
@@ -562,7 +572,13 @@ if __name__ == '__main__':
 			updatetitle()
 
 		# Send Discord startup
-		discordsend(f'# 💥 ED AFK Monitor 💥\n-# by CMDR PSIPAB ([v{VERSION}]({GITHUB_LINK}))')
+		if discord_forumchannel:
+			discordsend(f'💥 **ED AFK Monitor** 💥 by CMDR PSIPAB ([v{VERSION}]({GITHUB_LINK}))')
+			webhook.content += f' <@{discord_user}>'
+			webhook.edit()
+		else:
+			discordsend(f'# 💥 ED AFK Monitor 💥\n-# by CMDR PSIPAB ([v{VERSION}]({GITHUB_LINK}))')
+		
 		logevent(msg_term=f'Monitor started ({journal_file})',
 				msg_discord=f'**Monitor started** ({journal_file})',
 				emoji='📖', loglevel=2)

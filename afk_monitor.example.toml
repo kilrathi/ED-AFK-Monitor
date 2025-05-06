@@ -24,6 +24,8 @@ WebhookURL = ''
 # User ID can be found by sending \@yourdiscordusername on Discord (use only the numbers), e.g.:
 # UserID = 745279460191739562
 UserID = 0
+# ForumChannel specifies webhook is for a forum channel and enables thread support (Default: false)
+ForumChannel = false
 # Timestamp = true (default) appends a timestamp to Discord messages, set false to disable
 Timestamp = true
 # Identity = true (default) provides default name and avatar for webhook, set false to use user-set
