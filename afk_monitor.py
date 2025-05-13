@@ -34,6 +34,7 @@ SHIPS_EASY = ['Adder', 'Asp Explorer', 'Asp Scout', 'Cobra Mk III', 'Cobra Mk IV
 SHIPS_HARD = ['Alliance Crusader', 'Alliance Challenger', 'Alliance Chieftain', 'Anaconda', 'Federal Assault Ship', 'Federal Dropship', 'Federal Gunship', 'Fer-de-Lance', 'Imperial Clipper', 'Krait MK II', 'Python', 'Vulture', 'Type-10 Defender']
 BAIT_MESSAGES = ['$Pirate_ThreatTooHigh', '$Pirate_NotEnoughCargo', '$Pirate_OnNoCargoFound']
 LOGLEVEL_DEFAULTS = {'ScanEasy': 1, 'ScanHard': 2, 'KillEasy': 2, 'KillHard': 2, 'FighterHull': 2, 'FighterDown': 3, 'ShipShields': 3, 'ShipHull': 3, 'Died': 3, 'CargoLost': 3, 'BaitValueLow': 2, 'SecurityScan': 2, 'SecurityAttack': 3, 'FuelLow': 2, 'FuelCritical': 3, 'Missions': 2, 'MissionsAll': 3, 'SummaryKills': 2, 'SummaryBounties': 1, 'SummaryMerits': 0, 'Inactivity': 3}
+COMBAT_RANKS = ['Harmless', 'Mostly Harmless', 'Novice', 'Compentent', 'Expert', 'Master', 'Dangerous', 'Deadly', 'Elite', 'Elite I', 'Elite II', 'Elite III', 'Elite IV', 'Elite V']
 
 class Col:
 	CYAN = '\033[96m'
@@ -153,6 +154,8 @@ class Tracking():
 		self.lastactivity = None
 		self.inactivitywarn = True
 		self.preloading = True
+		self.cmdrcombatrank = None
+		self.cmdrcombatprogress = None
 
 session = Instance()
 track = Tracking()
@@ -436,8 +439,10 @@ def processevent(line):
 			case 'LoadGame':
 				ship = this_json['Ship'] if 'Ship_Localised' not in this_json else this_json['Ship_Localised']
 				mode = 'Private' if this_json['GameMode'] == 'Group' else this_json['GameMode']
-				logevent(msg_term=f"Loaded CMDR {this_json['Commander']} ({ship}) [{mode}]",
-						msg_discord=f"**Loaded CMDR {this_json['Commander']}** ({ship}) [{mode}]",
+				combatrank = f' / {COMBAT_RANKS[track.cmdrcombatrank]}' if track.cmdrcombatrank is not None else ''
+				combatrank += f' +{track.cmdrcombatprogress}%' if track.cmdrcombatprogress is not None and track.cmdrcombatrank < 13 else ''
+				logevent(msg_term=f"Loaded CMDR {this_json['Commander']} ({ship} / {mode}{combatrank})",
+						msg_discord=f"**Loaded CMDR {this_json['Commander']}** ({ship} / {mode}{combatrank})",
 						emoji='🔄', timestamp=logtime, loglevel=2)
 				session.reset()
 			case 'Loadout':
@@ -461,6 +466,10 @@ def processevent(line):
 				logevent(msg_term=f'{Col.BAD}Cargo stolen!{Col.END} ({name})',
 						msg_discord=f'**Cargo stolen!** ({name})',
 						emoji='📦', timestamp=logtime, loglevel=getloglevel('CargoLost'))
+			case 'Rank':
+				track.cmdrcombatrank = this_json['Combat']
+			case 'Progress':
+				track.cmdrcombatprogress = this_json['Combat']
 			case 'Missions' if 'Active' in this_json and not track.missions:
 				track.missionsactive.clear()
 				track.missionredirects = 0
