@@ -127,6 +127,7 @@ class Instance:
 		self.bounties = 0
 		self.merits = 0
 		self.lastsecurity = ''
+		self.baitfails = 0
 
 	def reset(self):
 		self.scans = []
@@ -137,6 +138,7 @@ class Instance:
 		self.bounties = 0
 		self.merits = 0
 		self.lastsecurity = ''
+		self.baitfails = 0
 		updatetitle()
 
 class Tracking():
@@ -467,8 +469,10 @@ def processevent(line):
 				session.reset()
 			case 'ReceiveText' if this_json['Channel'] == 'npc':
 				if any(x in this_json['Message'] for x in BAIT_MESSAGES):
-					logevent(msg_term=f'{Col.WARN}Pirate didn\'t engage due to insufficient cargo value{Col.END}',
-							msg_discord='**Pirate didn\'t engage due to insufficient cargo value**',
+					session.baitfails += 1
+					baitfails = f' (x{session.baitfails})' if setting_extendedstats else ''
+					logevent(msg_term=f'{Col.WARN}Pirate didn\'t engage due to insufficient cargo value{baitfails}{Col.END}',
+							msg_discord=f'**Pirate didn\'t engage due to insufficient cargo value**{baitfails}',
 							emoji='🎣', timestamp=logtime, loglevel=getloglevel('BaitValueLow'))
 				elif 'Police_Attack' in this_json['Message']:
 					logevent(msg_term=f'{Col.BAD}Under attack by security services!{Col.END}',
