@@ -263,7 +263,7 @@ def discordsend(message=''):
 # Log events
 def logevent(msg_term, msg_discord=None, emoji='', timestamp=None, loglevel=2, event=None):
 	loglevel = int(loglevel)
-	if track.preloading:
+	if track.preloading and not discord_test:
 		loglevel = 1 if loglevel > 0 else 0
 	if timestamp:
 		logtime = timestamp if setting_utc else timestamp.astimezone()
