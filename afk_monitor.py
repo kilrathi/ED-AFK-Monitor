@@ -31,8 +31,8 @@ FUEL_LOW = 0.2		# 20%
 FUEL_CRIT = 0.1		# 10%
 TRUNC_FACTION = 30
 KILLS_RECENT = 10
-SHIPS_EASY = ['Adder', 'Asp Explorer', 'Asp Scout', 'Cobra Mk III', 'Cobra Mk IV', 'Diamondback Explorer', 'Diamondback Scout', 'Eagle', 'Imperial Courier', 'Imperial Eagle', 'Krait Phantom', 'Sidewinder', 'Viper Mk III', 'Viper Mk IV']
-SHIPS_HARD = ['Alliance Crusader', 'Alliance Challenger', 'Alliance Chieftain', 'Anaconda', 'Federal Assault Ship', 'Federal Dropship', 'Federal Gunship', 'Fer-de-Lance', 'Imperial Clipper', 'Krait MK II', 'Python', 'Vulture', 'Type-10 Defender']
+SHIPS_EASY = ['adder', 'asp', 'asp_scout', 'cobramkiii', 'cobramkiv', 'diamondback', 'diamondbackxl', 'eagle', 'empire_courier', 'empire_eagle', 'krait_light', 'sidewinder', 'viper', 'viper_mkiv']
+SHIPS_HARD = ['typex', 'typex_2', 'typex_3', 'anaconda', 'federation_dropship_mkii', 'federation_dropship', 'federation_gunship', 'ferdelance', 'empire_trader', 'krait_mkii', 'python', 'vulture', 'type9_military']
 BAIT_MESSAGES = ['$Pirate_ThreatTooHigh', '$Pirate_NotEnoughCargo', '$Pirate_OnNoCargoFound']
 LOGLEVEL_DEFAULTS = {'ScanEasy': 1, 'ScanHard': 2, 'KillEasy': 2, 'KillHard': 2, 'FighterHull': 2, 'FighterDown': 3, 'ShipShields': 3, 'ShipHull': 3, 'Died': 3, 'CargoLost': 3, 'BaitValueLow': 2, 'SecurityScan': 2, 'SecurityAttack': 3, 'FuelLow': 2, 'FuelCritical': 3, 'Missions': 2, 'MissionsAll': 3, 'SummaryKills': 2, 'SummaryBounties': 1, 'SummaryMerits': 0, 'Inactivity': 3}
 COMBAT_RANKS = ['Harmless', 'Mostly Harmless', 'Novice', 'Compentent', 'Expert', 'Master', 'Dangerous', 'Deadly', 'Elite', 'Elite I', 'Elite II', 'Elite III', 'Elite IV', 'Elite V']
@@ -317,16 +317,18 @@ def processevent(line):
 					logevent(msg_term=f'{Col.WARN}Scanned security{Col.END} ({ship})',
 							msg_discord=f'**Scanned security** ({ship})',
 							emoji='🚨', timestamp=logtime, loglevel=getloglevel('SecurityScan'))
-				elif not ship in session.scans and (ship in SHIPS_EASY or ship in SHIPS_HARD):
+				elif not ship in session.scans and (this_json['Ship'] in SHIPS_EASY or this_json['Ship'] in SHIPS_HARD):
 					session.scans.append(ship)
-					if ship in SHIPS_EASY:
+					hard = ''
+					log = getloglevel('ScanEasy')
+					if this_json['Ship'] in SHIPS_EASY:
 						col = Col.EASY
-						log = getloglevel('ScanEasy')
-						hard = ''
-					else:
+					elif this_json['Ship'] in SHIPS_HARD:
 						col = Col.HARD
 						log = getloglevel('ScanHard')
 						hard = ' ☠️'
+					else:
+						col = Col.WHITE
 					logevent(msg_term=f'{col}Scan{Col.END}: {ship}{rank}',
 							msg_discord=f'**{ship}**{hard}{rank}',
 							emoji='🔎', timestamp=logtime, loglevel=log)
@@ -348,16 +350,18 @@ def processevent(line):
 					track.totaltime += seconds
 				session.lastkill = logtime
 
-				ship = this_json['Target_Localised'] if 'Target_Localised' in this_json else this_json['Target'].title()
-				if ship in SHIPS_EASY:
+				hard = ''
+				log = getloglevel('KillEasy')
+				if this_json['Target'] in SHIPS_EASY:
 					col = Col.EASY
-					log = getloglevel('KillEasy')
-					hard = ''
-				else:
+				elif this_json['Target'] in SHIPS_HARD:
 					col = Col.HARD
 					log = getloglevel('KillHard')
 					hard = ' ☠️'
+				else:
+					col = Col.WHITE
 				
+				ship = this_json['Target_Localised'] if 'Target_Localised' in this_json else this_json['Target'].title()
 				kills_t = f' x{session.kills}' if setting_extendedstats else ''
 				kills_d = f'x{session.kills} ' if setting_extendedstats else ''
 				bountyvalue = f' [{num_format(this_json['Rewards'][0]['Reward'])} cr]' if setting_bountyvalue else ''
