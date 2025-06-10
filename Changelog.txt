@@ -2,6 +2,13 @@
 ED AFK Monitor Changelog
 ------------------------
 
+v250610
+-------
+- Add update checker
+- Fix ship difficulty identification for non-English languages
+- Fix Discord test mode during preloading
+- Fix failure to suppress duplicate Discord bait fail messages
+
 v250527
 -------
 - New 'ExtendedStats' setting adds:

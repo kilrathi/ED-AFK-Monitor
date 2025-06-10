@@ -8,6 +8,7 @@ import os
 import ctypes
 import re
 import argparse
+from urllib.request import urlopen
 try:
 	from discord_webhook import DiscordWebhook
 	discord_enabled = True
@@ -23,8 +24,8 @@ def fallover(message):
 # Internals
 DEBUG_MODE = False
 DISCORD_TEST = False
-VERSION = "250527"
-GITHUB_LINK = "https://github.com/PsiPab/ED-AFK-Monitor"
+VERSION = 250610
+GITHUB_REPO = "PsiPab/ED-AFK-Monitor"
 DUPE_MAX = 5
 MAX_FILES = 10
 FUEL_LOW = 0.2		# 20%
@@ -48,11 +49,24 @@ class Col:
 	WHITE = '\033[97m'
 	END = '\x1b[0m'
 
+# Update check
+url = f"https://api.github.com/repos/{GITHUB_REPO}/releases/latest"
+latest_version = 0
+try:
+	with urlopen(url, timeout=1) as response:
+		if response.status == 200:
+			release_data = json.loads(response.read())
+			latest_version = int(release_data['tag_name'][1:])
+except Exception:
+	pass
+
 # Print header
 title = f'ED AFK Monitor v{VERSION} by CMDR PSIPAB'
-print(f"{Col.CYAN}{'='*len(title)}{Col.END}")
-print(f'{Col.CYAN}{title}{Col.END}')
-print(f"{Col.CYAN}{'='*len(title)}{Col.END}\n")
+print(f"{Col.CYAN}{'='*len(title)}")
+print(f'{title}')
+print(f"{'='*len(title)}{Col.END}\n")
+if VERSION < latest_version:
+	print(f"{Col.YELL}Update v{latest_version} is available!{Col.END}\n{Col.WHITE}Download:{Col.END} https://github.com/{GITHUB_REPO}/releases\n")
 if os.name=='nt': ctypes.windll.kernel32.SetConsoleTitleW(f'ED AFK Monitor v{VERSION}')
 
 # Load config file
@@ -604,12 +618,14 @@ if __name__ == '__main__':
 			updatetitle()
 
 		# Send Discord startup
+		update_notice = f'\n:arrow_up: Update **[v{latest_version}](https://github.com/{GITHUB_REPO}/releases)** available!' if VERSION < latest_version else ''
+
 		if discord_forumchannel:
-			discordsend(f'💥 **ED AFK Monitor** 💥 by CMDR PSIPAB ([v{VERSION}]({GITHUB_LINK}))')
+			discordsend(f'💥 **ED AFK Monitor** 💥 by CMDR PSIPAB ([v{VERSION}](https://github.com/{GITHUB_REPO})){update_notice}')
 			webhook.content += f' <@{discord_user}>'
 			webhook.edit()
 		else:
-			discordsend(f'# 💥 ED AFK Monitor 💥\n-# by CMDR PSIPAB ([v{VERSION}]({GITHUB_LINK}))')
+			discordsend(f'# 💥 ED AFK Monitor 💥\n-# by CMDR PSIPAB ([v{VERSION}](https://github.com/{GITHUB_REPO})){update_notice}')
 		
 		logevent(msg_term=f'Monitor started ({journal_file})',
 				msg_discord=f'**Monitor started** ({journal_file})',
