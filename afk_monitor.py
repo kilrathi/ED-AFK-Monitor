@@ -489,7 +489,7 @@ def processevent(line):
 			case 'Loadout':
 				track.fuelcapacity = this_json['FuelCapacity']['Main'] if this_json['FuelCapacity']['Main'] >= 2 else 64
 				debug(f"Fuel capacity: {track.fuelcapacity}")
-			case 'SupercruiseDestinationDrop' if '$MULTIPLAYER' in this_json['Type']:
+			case 'SupercruiseDestinationDrop' if any(x in this_json['Type'] for x in ['$MULTIPLAYER', '$Warzone_Powerplay']):
 				logevent(msg_term=f"Dropped at {this_json['Type_Localised']}",
 						emoji='🚀', timestamp=logtime, loglevel=2)
 				session.reset()
