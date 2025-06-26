@@ -162,6 +162,7 @@ class Tracking():
 		self.totaltime = 0
 		self.totalbounties = 0
 		self.totalmerits = 0
+		self.killtype = 'bounties'
 		self.fighterhull = 0
 		self.logged = 0
 		self.missions = False
@@ -378,6 +379,7 @@ def processevent(line):
 				else:
 					bountyvalue = this_json['Reward']
 					ship = 'Powerplay'
+					track.killtype = 'bonds'
 
 				session.bounties += bountyvalue
 				track.totalbounties += bountyvalue
@@ -406,7 +408,7 @@ def processevent(line):
 					logevent(msg_term=f'Session kills: {session.kills:,} ({kills_hour}/hr | {time_format(avgseconds)}/kill){kills_hour_recent}',
 			  				msg_discord=f'**Session kills: {session.kills:,} ({kills_hour}/hr | {time_format(avgseconds)}/kill)**{kills_hour_recent}',
 							emoji='📝', timestamp=logtime, loglevel=log)
-					logevent(msg_term=f'Session bounties: {num_format(session.bounties)} ({num_format(bounties_hour)}/hr | {num_format(avgbounty)}/kill)',
+					logevent(msg_term=f'Session {track.killtype}: {num_format(session.bounties)} ({num_format(bounties_hour)}/hr | {num_format(avgbounty)}/kill)',
 							emoji='📝', timestamp=logtime, loglevel=getloglevel('SummaryBounties'))
 					if session.merits > 0:
 						avgmerits = session.merits // session.kills
@@ -591,7 +593,7 @@ def shutdown():
 		bounties_hour = round(3600 / (track.totaltime / track.totalbounties))
 		logevent(msg_term=f'Total kills: {track.totalkills:,} ({kills_hour}/hr | {time_format(avgseconds)}/kill)',
 				emoji='📝', loglevel=getloglevel('SummaryKills'))
-		logevent(msg_term=f'Total bounties: {num_format(track.totalbounties)} ({num_format(bounties_hour)}/hr | {num_format(avgbounty)}/kill)',
+		logevent(msg_term=f'Total {track.killtype}: {num_format(track.totalbounties)} ({num_format(bounties_hour)}/hr | {num_format(avgbounty)}/kill)',
 				emoji='📝', loglevel=getloglevel('SummaryBounties'))
 		if track.totalmerits > 0:
 			avgmerits = track.totalmerits // track.totalkills
