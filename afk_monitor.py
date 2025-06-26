@@ -346,12 +346,10 @@ def processevent(line):
 					logevent(msg_term=f'{col}Scan{Col.END}: {ship}{rank}',
 							msg_discord=f'**{ship}**{hard}{rank}',
 							emoji='🔎', timestamp=logtime, loglevel=log)
-			case 'Bounty':
+			case 'Bounty' | 'FactionKillBond':
 				session.scans.clear()
 				session.kills +=1
 				track.totalkills +=1
-				session.bounties += this_json['Rewards'][0]['Reward']
-				track.totalbounties += this_json['Rewards'][0]['Reward']
 				thiskill = logtime
 				killtime = ''
 
@@ -366,27 +364,35 @@ def processevent(line):
 
 				hard = ''
 				log = getloglevel('KillEasy')
-				if this_json['Target'] in SHIPS_EASY:
-					col = Col.EASY
-				elif this_json['Target'] in SHIPS_HARD:
-					col = Col.HARD
-					log = getloglevel('KillHard')
-					hard = ' ☠️'
+				col = Col.WHITE
+				if this_json['event'] == 'Bounty':
+					if this_json['Target'] in SHIPS_EASY:
+						col = Col.EASY
+					elif this_json['Target'] in SHIPS_HARD:
+						col = Col.HARD
+						log = getloglevel('KillHard')
+						hard = ' ☠️'
+					
+					bountyvalue = this_json['Rewards'][0]['Reward']
+					ship = this_json['Target_Localised'] if 'Target_Localised' in this_json else this_json['Target'].title()
 				else:
-					col = Col.WHITE
-				
-				ship = this_json['Target_Localised'] if 'Target_Localised' in this_json else this_json['Target'].title()
+					bountyvalue = this_json['Reward']
+					ship = 'Powerplay'
+
+				session.bounties += bountyvalue
+				track.totalbounties += bountyvalue
 				kills_t = f' x{session.kills}' if setting_extendedstats else ''
 				kills_d = f'x{session.kills} ' if setting_extendedstats else ''
-				bountyvalue = f' [{num_format(this_json['Rewards'][0]['Reward'])} cr]' if setting_bountyvalue else ''
-				bountyfaction = this_json['VictimFaction'] if len(this_json['VictimFaction']) <= TRUNC_FACTION+3 else f'{this_json['VictimFaction'][:TRUNC_FACTION].rstrip()}...'
+				bountyvalue = f' [{num_format(bountyvalue)} cr]' if setting_bountyvalue else ''
+				victimfaction = this_json['VictimFaction_Localised'] if 'VictimFaction_Localised' in this_json else this_json['VictimFaction']
+				bountyfaction = victimfaction if len(victimfaction) <= TRUNC_FACTION+3 else f'{victimfaction[:TRUNC_FACTION].rstrip()}...'
 				bountyfaction = f' [{bountyfaction}]' if setting_bountyfaction else ''
 				logevent(msg_term=f"{col}Kill{Col.END}{kills_t}: {ship}{killtime}{bountyvalue}{bountyfaction}",
 						msg_discord=f"{kills_d}**{ship}{hard}{killtime}**{bountyvalue}{bountyfaction}",
 						emoji='💥', timestamp=logtime, loglevel=log)
 				
 				# Output stats every 10 kills
-				if session.kills % 10 == 0 and this_json['event'] == 'Bounty':
+				if session.kills % 10 == 0:
 					avgseconds = session.killstime / (session.kills - 1)
 					kills_hour = round(3600 / avgseconds, 1)
 					avgbounty = session.bounties // session.kills
