@@ -51,6 +51,7 @@ CargoLost = 3           # Cargo stolen
 BaitValueLow = 2        # Insufficient cargo value messages
 SecurityScan = 2        # Police ships being scanned
 SecurityAttack = 3      # Police ships warning they are attacking you
+FuelReport = 1          # Fuel use and time remaining
 FuelLow = 2             # Fuel level low (under 20%)
 FuelCritical = 3        # Fuel level critical (under 10%)
 Missions = 2            # Kills completed for a mission

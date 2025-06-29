@@ -35,7 +35,7 @@ KILLS_RECENT = 10
 SHIPS_EASY = ['adder', 'asp', 'asp_scout', 'cobramkiii', 'cobramkiv', 'diamondback', 'diamondbackxl', 'eagle', 'empire_courier', 'empire_eagle', 'krait_light', 'sidewinder', 'viper', 'viper_mkiv']
 SHIPS_HARD = ['typex', 'typex_2', 'typex_3', 'anaconda', 'federation_dropship_mkii', 'federation_dropship', 'federation_gunship', 'ferdelance', 'empire_trader', 'krait_mkii', 'python', 'vulture', 'type9_military']
 BAIT_MESSAGES = ['$Pirate_ThreatTooHigh', '$Pirate_NotEnoughCargo', '$Pirate_OnNoCargoFound']
-LOGLEVEL_DEFAULTS = {'ScanEasy': 1, 'ScanHard': 2, 'KillEasy': 2, 'KillHard': 2, 'FighterHull': 2, 'FighterDown': 3, 'ShipShields': 3, 'ShipHull': 3, 'Died': 3, 'CargoLost': 3, 'BaitValueLow': 2, 'SecurityScan': 2, 'SecurityAttack': 3, 'FuelLow': 2, 'FuelCritical': 3, 'Missions': 2, 'MissionsAll': 3, 'SummaryKills': 2, 'SummaryBounties': 1, 'SummaryMerits': 0, 'Inactivity': 3}
+LOGLEVEL_DEFAULTS = {'ScanEasy': 1, 'ScanHard': 2, 'KillEasy': 2, 'KillHard': 2, 'FighterHull': 2, 'FighterDown': 3, 'ShipShields': 3, 'ShipHull': 3, 'Died': 3, 'CargoLost': 3, 'BaitValueLow': 2, 'SecurityScan': 2, 'SecurityAttack': 3, 'FuelLow': 2, 'FuelCritical': 3, 'FuelReport': 1, 'Missions': 2, 'MissionsAll': 3, 'SummaryKills': 2, 'SummaryBounties': 1, 'SummaryMerits': 0, 'Inactivity': 3}
 COMBAT_RANKS = ['Harmless', 'Mostly Harmless', 'Novice', 'Compentent', 'Expert', 'Master', 'Dangerous', 'Deadly', 'Elite', 'Elite I', 'Elite II', 'Elite III', 'Elite IV', 'Elite V']
 
 class Col:
@@ -142,6 +142,8 @@ class Instance:
 		self.merits = 0
 		self.lastsecurity = ''
 		self.baitfails = 0
+		self.fuellasttime = 0
+		self.fuellastremain = 0
 
 	def reset(self):
 		self.scans = []
@@ -153,6 +155,8 @@ class Instance:
 		self.merits = 0
 		self.lastsecurity = ''
 		self.baitfails = 0
+		self.fuellasttime = 0
+		self.fuellastremain = 0
 		updatetitle()
 
 class Tracking():
@@ -432,19 +436,36 @@ def processevent(line):
 				logevent(msg_term=f'Completed kills for {msg} ({missions})',
 						emoji='✅', timestamp=logtime, loglevel=log)
 				updatetitle()
-			case 'ReservoirReplenished' if this_json['FuelMain'] < track.fuelcapacity * FUEL_LOW:
+			case 'ReservoirReplenished':
+				fuelremaining = round((this_json['FuelMain'] / track.fuelcapacity) * 100)
+				if session.fuellasttime:
+					#debug(f'Fuel used since previous: {round(session.fuellastremain-this_json['FuelMain'],2)}t in {round((logtime-session.fuellasttime).total_seconds()/60)}m')
+					fuel_hour = round(3600 / (logtime-session.fuellasttime).total_seconds() * (session.fuellastremain-this_json['FuelMain']), 2)
+					fuel_time_remain = time_format(this_json['FuelMain'] / fuel_hour * 3600)
+					fuel_time_remain = f' (~{fuel_time_remain})'
+				else:
+					fuel_time_remain = ''
+
+				session.fuellasttime = logtime
+				session.fuellastremain = this_json['FuelMain']
+
+				col = ''
+				level = ':'
+				fuel_loglevel = 0
 				if this_json['FuelMain'] < track.fuelcapacity * FUEL_CRIT:
 					col = Col.BAD
 					fuel_loglevel = getloglevel('FuelCritical')
-					level = 'critical!'
-				else:
+					level = ' critical!'
+				elif this_json['FuelMain'] < track.fuelcapacity * FUEL_LOW:
 					col = Col.WARN
 					fuel_loglevel = getloglevel('FuelLow')
-					level = 'low'
-				fuelremaining = round((this_json['FuelMain'] / track.fuelcapacity) * 100)
-				logevent(msg_term=f'{col}Fuel reserves {level}{Col.END} (Remaining: {fuelremaining}%)',
-						msg_discord=f'**Fuel reserves {level}** (Remaining: {fuelremaining}%)',
-						emoji='⛽', timestamp=logtime, loglevel=fuel_loglevel)
+					level = ' low:'
+				elif track.deployed:
+					fuel_loglevel = getloglevel('FuelReport')
+
+				logevent(msg_term=f'{col}Fuel: {fuelremaining}% remaining{Col.END}{fuel_time_remain}',
+					msg_discord=f'**Fuel{level} {fuelremaining}% remaining**{fuel_time_remain}',
+					emoji='⛽', timestamp=logtime, loglevel=fuel_loglevel)
 			case 'FighterDestroyed' if track.lastevent != 'StartJump':
 				logevent(msg_term=f'{Col.BAD}Fighter destroyed!{Col.END}',
 						msg_discord=f'**Fighter destroyed!**',
@@ -494,7 +515,7 @@ def processevent(line):
 				session.reset()
 			case 'Loadout':
 				track.fuelcapacity = this_json['FuelCapacity']['Main'] if this_json['FuelCapacity']['Main'] >= 2 else 64
-				debug(f"Fuel capacity: {track.fuelcapacity}")
+				#debug(f"Fuel capacity: {track.fuelcapacity}")
 			case 'SupercruiseDestinationDrop' if any(x in this_json['Type'] for x in ['$MULTIPLAYER', '$Warzone_Powerplay']):
 				track.deployed = True
 				logevent(msg_term=f"Dropped at {this_json['Type_Localised']}",
@@ -563,7 +584,7 @@ def time_format(seconds: int) -> str:
 		m = seconds % 3600 // 60
 		s = seconds % 3600 % 60
 		if h > 0:
-			return '{:d}h{:d}m{:d}s'.format(h, m, s)
+			return '{:d}h{:d}m'.format(h, m)
 		elif m > 0:
 			return '{:d}m{:d}s'.format(m, s)
 		else:
