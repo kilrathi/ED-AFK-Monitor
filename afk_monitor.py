@@ -654,7 +654,7 @@ if __name__ == '__main__':
 				line = file.readline()
 				if not line:
 					time.sleep(1)
-					if setting_inactivitymax and track.inactivitywarn and (datetime.now() - track.lastactivity).total_seconds() > (setting_inactivitymax * 60):
+					if setting_inactivitymax and track.inactivitywarn and track.deployed and (datetime.now() - track.lastactivity).total_seconds() > (setting_inactivitymax * 60):
 						logevent(msg_term=f'No journal activity detected for {setting_inactivitymax} minutes',
 								emoji='⚠️', loglevel=getloglevel('Inactivity'))
 						track.inactivitywarn = False
