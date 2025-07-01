@@ -321,30 +321,30 @@ def getloglevel(key=None) -> int:
 # Process incoming journal entries
 def processevent(line):
 	try:
-		this_json = json.loads(line)
+		j = json.loads(line)
 	except ValueError:
 		print(f'{Col.WHITE}Warning:{Col.END} Journal parsing error, skipping line')
 		return
 
 	try:
-		logtime = datetime.fromisoformat(this_json['timestamp']) if 'timestamp' in this_json else None
-		match this_json['event']:
-			case 'ShipTargeted' if 'Ship' in this_json:
-				ship = this_json['Ship_Localised'] if 'Ship_Localised' in this_json else this_json['Ship'].title()
-				rank = '' if not 'PilotRank' in this_json else f' ({this_json['PilotRank']})'
-				if ship != session.lastsecurity and 'PilotName' in this_json and '$ShipName_Police' in this_json['PilotName']:
+		logtime = datetime.fromisoformat(j['timestamp']) if 'timestamp' in j else None
+		match j['event']:
+			case 'ShipTargeted' if 'Ship' in j:
+				ship = j['Ship_Localised'] if 'Ship_Localised' in j else j['Ship'].title()
+				rank = '' if not 'PilotRank' in j else f' ({j['PilotRank']})'
+				if ship != session.lastsecurity and 'PilotName' in j and '$ShipName_Police' in j['PilotName']:
 					session.lastsecurity = ship
 					logevent(msg_term=f'{Col.WARN}Scanned security{Col.END} ({ship})',
 							msg_discord=f'**Scanned security** ({ship})',
 							emoji='🚨', timestamp=logtime, loglevel=getloglevel('SecurityScan'))
-				elif not ship in session.scans and (this_json['Ship'] in SHIPS_EASY or this_json['Ship'] in SHIPS_HARD):
+				elif not ship in session.scans and (j['Ship'] in SHIPS_EASY or j['Ship'] in SHIPS_HARD):
 					track.deployed = True
 					session.scans.append(ship)
 					hard = ''
 					log = getloglevel('ScanEasy')
-					if this_json['Ship'] in SHIPS_EASY:
+					if j['Ship'] in SHIPS_EASY:
 						col = Col.EASY
-					elif this_json['Ship'] in SHIPS_HARD:
+					elif j['Ship'] in SHIPS_HARD:
 						col = Col.HARD
 						log = getloglevel('ScanHard')
 						hard = ' ☠️'
@@ -373,18 +373,18 @@ def processevent(line):
 				hard = ''
 				log = getloglevel('KillEasy')
 				col = Col.WHITE
-				if this_json['event'] == 'Bounty':
-					if this_json['Target'] in SHIPS_EASY:
+				if j['event'] == 'Bounty':
+					if j['Target'] in SHIPS_EASY:
 						col = Col.EASY
-					elif this_json['Target'] in SHIPS_HARD:
+					elif j['Target'] in SHIPS_HARD:
 						col = Col.HARD
 						log = getloglevel('KillHard')
 						hard = ' ☠️'
 					
-					bountyvalue = this_json['Rewards'][0]['Reward']
-					ship = this_json['Target_Localised'] if 'Target_Localised' in this_json else this_json['Target'].title()
+					bountyvalue = j['Rewards'][0]['Reward']
+					ship = j['Target_Localised'] if 'Target_Localised' in j else j['Target'].title()
 				else:
-					bountyvalue = this_json['Reward']
+					bountyvalue = j['Reward']
 					ship = 'Powerplay'
 					track.killtype = 'bonds'
 
@@ -393,7 +393,7 @@ def processevent(line):
 				kills_t = f' x{session.kills}' if setting_extendedstats else ''
 				kills_d = f'x{session.kills} ' if setting_extendedstats else ''
 				bountyvalue = f' [{num_format(bountyvalue)} cr]' if setting_bountyvalue else ''
-				victimfaction = this_json['VictimFaction_Localised'] if 'VictimFaction_Localised' in this_json else this_json['VictimFaction']
+				victimfaction = j['VictimFaction_Localised'] if 'VictimFaction_Localised' in j else j['VictimFaction']
 				bountyfaction = victimfaction if len(victimfaction) <= TRUNC_FACTION+3 else f'{victimfaction[:TRUNC_FACTION].rstrip()}...'
 				bountyfaction = f' [{bountyfaction}]' if setting_bountyfaction else ''
 				logevent(msg_term=f"{col}Kill{Col.END}{kills_t}: {ship}{killtime}{bountyvalue}{bountyfaction}",
@@ -424,7 +424,7 @@ def processevent(line):
 								emoji='📝', timestamp=logtime, loglevel=getloglevel('SummaryMerits'))
 				
 				updatetitle()
-			case 'MissionRedirected' if 'Mission_Massacre' in this_json['Name']:
+			case 'MissionRedirected' if 'Mission_Massacre' in j['Name']:
 				track.missionredirects += 1
 				msg = 'a mission'
 				missions = f'{track.missionredirects}/{len(track.missionsactive)}'
@@ -437,26 +437,26 @@ def processevent(line):
 						emoji='✅', timestamp=logtime, loglevel=log)
 				updatetitle()
 			case 'ReservoirReplenished':
-				fuelremaining = round((this_json['FuelMain'] / track.fuelcapacity) * 100)
+				fuelremaining = round((j['FuelMain'] / track.fuelcapacity) * 100)
 				if session.fuellasttime:
-					#debug(f'Fuel used since previous: {round(session.fuellastremain-this_json['FuelMain'],2)}t in {round((logtime-session.fuellasttime).total_seconds()/60)}m')
-					fuel_hour = round(3600 / (logtime-session.fuellasttime).total_seconds() * (session.fuellastremain-this_json['FuelMain']), 2)
-					fuel_time_remain = time_format(this_json['FuelMain'] / fuel_hour * 3600)
+					#debug(f'Fuel used since previous: {round(session.fuellastremain-j['FuelMain'],2)}t in {round((logtime-session.fuellasttime).total_seconds()/60)}m')
+					fuel_hour = round(3600 / (logtime-session.fuellasttime).total_seconds() * (session.fuellastremain-j['FuelMain']), 2)
+					fuel_time_remain = time_format(j['FuelMain'] / fuel_hour * 3600)
 					fuel_time_remain = f' (~{fuel_time_remain})'
 				else:
 					fuel_time_remain = ''
 
 				session.fuellasttime = logtime
-				session.fuellastremain = this_json['FuelMain']
+				session.fuellastremain = j['FuelMain']
 
 				col = ''
 				level = ':'
 				fuel_loglevel = 0
-				if this_json['FuelMain'] < track.fuelcapacity * FUEL_CRIT:
+				if j['FuelMain'] < track.fuelcapacity * FUEL_CRIT:
 					col = Col.BAD
 					fuel_loglevel = getloglevel('FuelCritical')
 					level = ' critical!'
-				elif this_json['FuelMain'] < track.fuelcapacity * FUEL_LOW:
+				elif j['FuelMain'] < track.fuelcapacity * FUEL_LOW:
 					col = Col.WARN
 					fuel_loglevel = getloglevel('FuelLow')
 					level = ' low:'
@@ -470,11 +470,11 @@ def processevent(line):
 				logevent(msg_term=f'{Col.BAD}Fighter destroyed!{Col.END}',
 						msg_discord=f'**Fighter destroyed!**',
 						emoji='🕹️', timestamp=logtime, loglevel=getloglevel('FighterDown'))
-			case 'LaunchFighter' if not this_json['PlayerControlled']:
+			case 'LaunchFighter' if not j['PlayerControlled']:
 				logevent(msg_term='Fighter launched',
 						emoji='🕹️', timestamp=logtime, loglevel=2)
 			case 'ShieldState':
-				if this_json['ShieldsUp']:
+				if j['ShieldsUp']:
 					shields = 'back up'
 					col = Col.GOOD
 				else:
@@ -484,13 +484,13 @@ def processevent(line):
 						msg_discord=f'**Ship shields {shields}**',
 						emoji='🛡️', timestamp=logtime, loglevel=getloglevel('ShipShields'))
 			case 'HullDamage':
-				hullhealth = round(this_json['Health'] * 100)
-				if this_json['Fighter'] and not this_json['PlayerPilot'] and track.fighterhull != this_json['Health']:
-					track.fighterhull = this_json['Health']
+				hullhealth = round(j['Health'] * 100)
+				if j['Fighter'] and not j['PlayerPilot'] and track.fighterhull != j['Health']:
+					track.fighterhull = j['Health']
 					logevent(msg_term=f'{Col.WARN}Fighter hull damaged!{Col.END} (Integrity: {hullhealth}%)',
 						msg_discord=f'**Fighter hull damaged!** (Integrity: {hullhealth}%)',
 						emoji='🕹️', timestamp=logtime, loglevel=getloglevel('FighterHull'))
-				elif this_json['PlayerPilot'] and not this_json['Fighter']:
+				elif j['PlayerPilot'] and not j['Fighter']:
 					logevent(msg_term=f'{Col.BAD}Ship hull damaged!{Col.END} (Integrity: {hullhealth}%)',
 						msg_discord=f'**Ship hull damaged!** (Integrity: {hullhealth}%)',
 						emoji='🛠️', timestamp=logtime, loglevel=getloglevel('ShipHull'))
@@ -498,74 +498,74 @@ def processevent(line):
 				logevent(msg_term=f'{Col.BAD}Ship destroyed!{Col.END}',
 						msg_discord='**Ship destroyed!**',
 						emoji='💀', timestamp=logtime, loglevel=getloglevel('Died'))
-			case 'Music' if this_json['MusicTrack'] == 'MainMenu':
+			case 'Music' if j['MusicTrack'] == 'MainMenu':
 				track.deployed = False
 				logevent(msg_term='Exited to main menu',
 					emoji='🚪', timestamp=logtime, loglevel=2)
 				track.inactivitywarn = False
 				session.reset()
 			case 'LoadGame':
-				ship = this_json['Ship'] if 'Ship_Localised' not in this_json else this_json['Ship_Localised']
-				mode = 'Private' if this_json['GameMode'] == 'Group' else this_json['GameMode']
+				ship = j['Ship'] if 'Ship_Localised' not in j else j['Ship_Localised']
+				mode = 'Private' if j['GameMode'] == 'Group' else j['GameMode']
 				combatrank = f' / {COMBAT_RANKS[track.cmdrcombatrank]}' if track.cmdrcombatrank is not None else ''
 				combatrank += f' +{track.cmdrcombatprogress}%' if track.cmdrcombatprogress is not None and track.cmdrcombatrank < 13 else ''
-				logevent(msg_term=f"Loaded CMDR {this_json['Commander']} ({ship} / {mode}{combatrank})",
-						msg_discord=f"**Loaded CMDR {this_json['Commander']}** ({ship} / {mode}{combatrank})",
+				logevent(msg_term=f"Loaded CMDR {j['Commander']} ({ship} / {mode}{combatrank})",
+						msg_discord=f"**Loaded CMDR {j['Commander']}** ({ship} / {mode}{combatrank})",
 						emoji='🔄', timestamp=logtime, loglevel=2)
 				session.reset()
 			case 'Loadout':
-				track.fuelcapacity = this_json['FuelCapacity']['Main'] if this_json['FuelCapacity']['Main'] >= 2 else 64
+				track.fuelcapacity = j['FuelCapacity']['Main'] if j['FuelCapacity']['Main'] >= 2 else 64
 				#debug(f"Fuel capacity: {track.fuelcapacity}")
-			case 'SupercruiseDestinationDrop' if any(x in this_json['Type'] for x in ['$MULTIPLAYER', '$Warzone_Powerplay']):
+			case 'SupercruiseDestinationDrop' if any(x in j['Type'] for x in ['$MULTIPLAYER', '$Warzone_Powerplay']):
 				track.deployed = True
-				logevent(msg_term=f"Dropped at {this_json['Type_Localised']}",
+				logevent(msg_term=f"Dropped at {j['Type_Localised']}",
 						emoji='🚀', timestamp=logtime, loglevel=2)
 				session.reset()
-			case 'ReceiveText' if this_json['Channel'] == 'npc':
-				if any(x in this_json['Message'] for x in BAIT_MESSAGES):
+			case 'ReceiveText' if j['Channel'] == 'npc':
+				if any(x in j['Message'] for x in BAIT_MESSAGES):
 					session.baitfails += 1
 					baitfails = f' (x{session.baitfails})' if setting_extendedstats else ''
 					logevent(msg_term=f'{Col.WARN}Pirate didn\'t engage due to insufficient cargo value{baitfails}{Col.END}',
 							msg_discord=f'**Pirate didn\'t engage due to insufficient cargo value**{baitfails}',
 							emoji='🎣', timestamp=logtime, loglevel=getloglevel('BaitValueLow'), event='BaitValueLow')
-				elif 'Police_Attack' in this_json['Message']:
+				elif 'Police_Attack' in j['Message']:
 					logevent(msg_term=f'{Col.BAD}Under attack by security services!{Col.END}',
 							msg_discord=f'**Under attack by security services!**',
 							emoji='🚨', timestamp=logtime, loglevel=getloglevel('SecurityAttack'))
-			case 'EjectCargo' if not this_json["Abandoned"] and this_json['Count'] == 1:
-				name = this_json['Type_Localised'] if 'Type_Localised' in this_json else this_json['Type'].title()
+			case 'EjectCargo' if not j["Abandoned"] and j['Count'] == 1:
+				name = j['Type_Localised'] if 'Type_Localised' in j else j['Type'].title()
 				logevent(msg_term=f'{Col.BAD}Cargo stolen!{Col.END} ({name})',
 						msg_discord=f'**Cargo stolen!** ({name})',
 						emoji='📦', timestamp=logtime, loglevel=getloglevel('CargoLost'), event='CargoLost')
 			case 'Rank':
-				track.cmdrcombatrank = this_json['Combat']
+				track.cmdrcombatrank = j['Combat']
 			case 'Progress':
-				track.cmdrcombatprogress = this_json['Combat']
-			case 'Missions' if 'Active' in this_json and not track.missions:
+				track.cmdrcombatprogress = j['Combat']
+			case 'Missions' if 'Active' in j and not track.missions:
 				track.missionsactive.clear()
 				track.missionredirects = 0
-				for mission in this_json['Active']:
+				for mission in j['Active']:
 					if 'Mission_Massacre' in mission['Name'] and mission['Expires'] > 0:
 						track.missionsactive.append(mission['MissionID'])
 				track.missions = True
 				logevent(msg_term=f'Missions loaded (active massacres: {len(track.missionsactive)})',
 						emoji='🎯', timestamp=logtime, loglevel=getloglevel('Missions'))
 				updatetitle()
-			case 'MissionAccepted' if 'Mission_Massacre' in this_json['Name'] and track.missions:
-				track.missionsactive.append(this_json['MissionID'])
+			case 'MissionAccepted' if 'Mission_Massacre' in j['Name'] and track.missions:
+				track.missionsactive.append(j['MissionID'])
 				logevent(msg_term=f'Accepted massacre mission (active: {len(track.missionsactive)})',
 						emoji='🎯', timestamp=logtime, loglevel=getloglevel('Missions'))
 				updatetitle()
-			case 'MissionAbandoned' | 'MissionCompleted' | 'MissionFailed' if track.missions and this_json['MissionID'] in track.missionsactive:
-				track.missionsactive.remove(this_json['MissionID'])
+			case 'MissionAbandoned' | 'MissionCompleted' | 'MissionFailed' if track.missions and j['MissionID'] in track.missionsactive:
+				track.missionsactive.remove(j['MissionID'])
 				if track.missionredirects > 0: track.missionredirects -= 1
-				event = this_json['event'][7:].lower()
+				event = j['event'][7:].lower()
 				logevent(msg_term=f'Massacre mission {event} (active: {len(track.missionsactive)})',
 						emoji='🎯', timestamp=logtime, loglevel=getloglevel('Missions'))
 				updatetitle()
 			case 'PowerplayMerits':
-				session.merits += this_json['MeritsGained']
-				track.totalmerits += this_json['MeritsGained']
+				session.merits += j['MeritsGained']
+				track.totalmerits += j['MeritsGained']
 			case 'Shutdown':
 				logevent(msg_term='Quit to desktop',
 						emoji='🛑', timestamp=logtime, loglevel=2)
@@ -573,7 +573,7 @@ def processevent(line):
 			case 'SupercruiseEntry' | 'FSDJump':
 				session.reset()
 				track.deployed = False
-		track.lastevent = this_json['event']
+		track.lastevent = j['event']
 	except Exception as e:
 		print(f"{Col.WHITE}Warning:{Col.END} Process event went wrong: {e}")
 
