@@ -2,6 +2,13 @@
 ED AFK Monitor Changelog
 ------------------------
 
+v250701
+-------
+- Report estimated time fuel will last on fuel messages
+- New log level 'FuelReport' (default: 1) reports fuel info regardless of amount remaining
+- Enable reporting of kills, bonds (and merits if powerplay) at combat zones
+- Don't send journal inactivity warnings unless deployed for combat
+
 v250610
 -------
 - Add update checker
