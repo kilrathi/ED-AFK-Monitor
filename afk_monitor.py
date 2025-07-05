@@ -170,6 +170,7 @@ class Tracking():
 		self.killtype = 'bounties'
 		self.fighterhull = 0
 		self.logged = 0
+		self.lines = 0
 		self.missions = False
 		self.missionsactive = []
 		self.missionredirects = 0
@@ -575,7 +576,9 @@ def processevent(line):
 				track.deployed = False
 		track.lastevent = j['event']
 	except Exception as e:
-		print(f"{Col.WHITE}Warning:{Col.END} Process event went wrong: {e}")
+		event = j['event'] if 'event' in j else '[unknown]'
+		logtime = datetime.strftime(logtime, '%H:%M:%S') if logtime else '[unknown]'
+		print(f"{Col.WARN}Warning:{Col.END} Process event error for [{event}]: {e} (logtime: {logtime})")
 
 def time_format(seconds: int) -> str:
 	if seconds is not None:
@@ -644,6 +647,7 @@ if __name__ == '__main__':
 		with open(journal_dir / journal_file, encoding="utf-8") as file:
 			for line in file:
 				processevent(line)
+				track.lines += 1
 		track.preloading = False
 		if args.resetsession:
 			session.reset()
@@ -682,6 +686,7 @@ if __name__ == '__main__':
 					continue
 
 				processevent(line)
+				track.lines += 1
 				track.lastactivity = datetime.now()
 
 	except (KeyboardInterrupt, SystemExit):
@@ -691,5 +696,5 @@ if __name__ == '__main__':
 			input('\nPress ENTER to exit')	# This is *still* horrible
 			sys.exit()
 	except Exception as e:
-		print(f"{Col.WHITE}Warning:{Col.END} Something went wrong: {e}")
+		print(f"{Col.WARN}Warning:{Col.END} Something went wrong: {e} (journal line: {track.lines})")
 		input("Press ENTER to exit")
