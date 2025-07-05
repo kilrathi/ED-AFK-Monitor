@@ -439,11 +439,12 @@ def processevent(line):
 				updatetitle()
 			case 'ReservoirReplenished':
 				fuelremaining = round((j['FuelMain'] / track.fuelcapacity) * 100)
-				if session.fuellasttime and track.deployed:
-					#debug(f'Fuel used since previous: {round(session.fuellastremain-j['FuelMain'],2)}t in {round((logtime-session.fuellasttime).total_seconds()/60)}m')
-					fuel_hour = round(3600 / (logtime-session.fuellasttime).total_seconds() * (session.fuellastremain-j['FuelMain']), 2)
+				if session.fuellasttime and track.deployed and logtime > session.fuellasttime:
+					fuel_time = (logtime-session.fuellasttime).total_seconds()
+					fuel_hour = 3600 / fuel_time * (session.fuellastremain-j['FuelMain'])
 					fuel_time_remain = time_format(j['FuelMain'] / fuel_hour * 3600)
 					fuel_time_remain = f' (~{fuel_time_remain})'
+					#debug(f'Fuel used since previous: {round(session.fuellastremain-j['FuelMain'],2)}t in {time_format(fuel_time)}')
 				else:
 					fuel_time_remain = ''
 
