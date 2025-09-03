@@ -32,7 +32,6 @@ FUEL_LOW = 0.2		# 20%
 FUEL_CRIT = 0.1		# 10%
 TRUNC_FACTION = 30
 KILLS_RECENT = 10
-MERITS_MIN = 12
 WARN_NOKILLS = 5	# Minutes before warning of no kills at session start
 WARN_COOLDOWN = 15	# Cooldown in minutes after a kill rate warning (doubled each time thereafter)
 SHIPS_EASY = ['adder', 'asp', 'asp_scout', 'cobramkiii', 'cobramkiv', 'diamondback', 'diamondbackxl', 'eagle', 'empire_courier', 'empire_eagle', 'krait_light', 'sidewinder', 'viper', 'viper_mkiv']
@@ -149,6 +148,7 @@ class Instance:
 		self.baitfails = 0
 		self.fuellasttime = 0
 		self.fuellastremain = 0
+		self.meritstoreport = 0
 
 class Tracking:
 	def __init__(self):
@@ -371,6 +371,7 @@ def processevent(line):
 				thiskill = logtime
 				killtime = ''
 				track.lastcheck = time.monotonic()
+				session.meritstoreport +=1
 				
 				if session.lastkill:
 					seconds = (thiskill-session.lastkill).total_seconds()
@@ -568,11 +569,12 @@ def processevent(line):
 				logevent(msg_term=f'Massacre mission {event} (active: {len(track.missionsactive)})',
 						emoji='🎯', timestamp=logtime, loglevel=getloglevel('Missions'))
 			case 'PowerplayMerits':
-				session.merits += j['MeritsGained']
-				track.totalmerits += j['MeritsGained']
-				if j['MeritsGained'] > MERITS_MIN:
+				if session.meritstoreport > 0 and j['MeritsGained'] < 500:
+					session.merits += j['MeritsGained']
+					track.totalmerits += j['MeritsGained']
 					logevent(msg_term=f'Merits: +{j['MeritsGained']} ({j['Power']})',
-			  			emoji='🎫', timestamp=logtime, loglevel=getloglevel('Merits'))
+				 			emoji='🎫', timestamp=logtime, loglevel=getloglevel('Merits'))
+					session.meritstoreport -= 1
 			case 'Location' if j['BodyType'] == 'PlanetaryRing':
 				track.sessionstart()
 				debug(f'Deploy time by location (planetary ring) {track.deploytime}')
