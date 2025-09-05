@@ -2,8 +2,8 @@
 ED AFK Monitor Changelog
 ------------------------
 
-WIP
----
+v250904
+-------
 - Real-time monitoring of kill rate and interval for improved warnings of dead or poor instances
   - At the start of a new instance warn if 5 minutes pass without any kills
   - Warn if the hourly kill rate average drops below the configured amount
@@ -11,7 +11,7 @@ WIP
 - Real-time window title updating (Windows OS only)
   - Kills per hour are now live and based on deploy time (=more accurate)
   - Addition of elapsed time since previous kill
-- Reporting of merits gained (log level 'Merits')
+- Reporting of merits gained from kills (log level 'Merits', default 0)
 - Improved error messages (that you hopefully won't see)
 
 v250701
