@@ -78,7 +78,7 @@ if getattr(sys, "frozen", False) and hasattr(sys, "_MEIPASS"):
 else:
     configfile = Path(__file__).parent / "afk_monitor.toml"
 if configfile.is_file():
-    with open(configfile, "rb") as f:
+    with open(configfile, mode="rb") as f:
         config = tomllib.load(f)
 else:
     fallover("Config file not found - copy and rename afk_monitor.example.toml to afk_monitor.toml\n")
@@ -111,7 +111,7 @@ def getconfig(category, setting, default=None):
 # Get settings from config unless argument
 profile = args.profile if args.profile is not None else None
 setting_fileselect = args.fileselect if args.fileselect is not None else False
-setting_journal = args.journal if args.journal is not None else getconfig("Settings", "JournalFolder")
+setting_journal_dir = args.journal if args.journal is not None else getconfig("Settings", "JournalFolder")
 setting_journal_file = args.setfile if args.setfile is not None else None
 setting_utc = getconfig("Settings", "UseUTC", False)
 setting_warnkillrate = getconfig("Settings", "WarnKillRate", 20)
@@ -136,7 +136,7 @@ def debug(message):
     if debug_mode:
         print(f"{Col.WHITE}[Debug]{Col.END} {message} [{datetime.strftime(datetime.now(), "%H:%M:%S")}]")
 
-debug(f"Arguments: {args}\nConfig: {config}\nJournal: {setting_journal}\nWebhook: {discord_webhook}\nLog levels: {loglevel}")
+debug(f"Arguments: {args}\nConfig: {config}\nJournal: {setting_journal_dir}\nWebhook: {discord_webhook}\nLog levels: {loglevel}")
 
 class Instance:
     def __init__(self):
@@ -204,69 +204,77 @@ class Tracking:
 session = Instance()
 track = Tracking()
 
-# Set journal folder
-if not setting_journal:
+# Set journal directory
+if not setting_journal_dir:
     journal_dir = Path.home() / "Saved Games" / "Frontier Developments" / "Elite Dangerous"
 else:
-    journal_dir = Path(setting_journal)
+    journal_dir = Path(setting_journal_dir)
 if not journal_dir.is_dir():
     fallover(f"Directory {journal_dir} not found")
 
-# Get latest journal or select from list of recents
-journals = []
-journal_file = None
-
-for entry in sorted(journal_dir.iterdir(), reverse=True):
-    if entry.is_file() and bool(re.search(REG_JOURNAL, entry.name)):
-        if not setting_fileselect:
-            journal_file = entry.name
-            break
-        else:
-            journals.append(entry.name)
-            if len(journals) == MAX_FILES: break
-
 print(f"{Col.YELL}Journal folder:{Col.END} {journal_dir}")
 
-if not journal_file and len(journals) == 0:
-    fallover(f"Directory does not contain any journal file")
+# Set journal file
+if not setting_journal_file:
+    journals = []
+    journal_file = None
 
-# Set specific journal file
-if setting_journal_file:
+    # Get recent journals, newest first
+    for entry in sorted(journal_dir.iterdir(), reverse=True):
+        if entry.is_file() and bool(re.search(REG_JOURNAL, entry.name)):
+            if not setting_fileselect:
+                # Just the latest journal
+                journal_file = entry.name
+                break
+            else:
+                # Build list of recent journals
+                journals.append(entry.name)
+                if len(journals) == MAX_FILES: break
+    
+    # Exit if no journals were found
+    if not journal_file and len(journals) == 0:
+        fallover(f"Journal folder does not contain any valid journal files")
+    
+    # Journal selector
+    if setting_fileselect:
+        print(f"\nLatest journals:")
+
+        # Get commander name from each journal and output list
+        commander = None
+        for i, filename in enumerate(journals, start=1):
+            with open(Path(journal_dir / filename), mode="r", encoding="utf-8") as file:
+                for line in file:
+                    try:
+                        entry = json.loads(line)
+                    except json.JSONDecodeError as e:
+                        print(f"[Fileselect] JSON error in {filename}: {e}")
+                    if entry["event"] == "Commander":
+                        commander =  entry["Name"]
+                        break
+
+            if not commander: commander = "[Unknown]"
+            num = f"{i:>{len(str(len(journals)))}}"
+            print(f"{num} | {filename} | CMDR {commander}")
+
+        # Prompt for journal choice
+        print("\nInput journal number to load")
+        selection = input("(ENTER for latest or any other input to quit)\n")
+        if selection:
+            try:
+                selection = int(selection)
+                if 1 <= selection <= MAX_FILES:
+                    journal_file = journals[selection-1]
+                else:
+                    fallover(f"Invalid number, exiting...")
+            except ValueError:
+                fallover(f"Exiting...")
+        else:
+            journal_file = journals[0]
+elif setting_journal_file:
+    # Set specific journal file
     journal_file = setting_journal_file if bool(re.search(REG_JOURNAL, setting_journal_file)) else None
     if not journal_file or not (journal_dir / journal_file).is_file():
-        fallover(f"Journal file {setting_journal_file} not found in {journal_dir}")
-
-# Journal selector
-if setting_fileselect:
-    print(f"\nLatest journals:")
-
-    # Get commander name from each journal and output list
-    commander = None
-    for i, filename in enumerate(journals, start=1):
-        with open(Path(journal_dir / filename)) as file:
-            for line in file:
-                entry = json.loads(line)
-                if entry["event"] == "Commander":
-                    commander =  entry["Name"]
-                    break
-
-        if not commander: commander = "[Unknown]"
-        num = f"{i:>{len(str(len(journals)))}}"
-        print(f"{num} | {filename} | CMDR {commander}")
-
-    print("\nInput journal number to load")
-    selection = input("(ENTER for latest or any other input to quit)\n")
-    if selection:
-        try:
-            selection = int(selection)
-            if 1 <= selection <= MAX_FILES:
-                journal_file = journals[selection-1]
-            else:
-                fallover(f"Invalid number, exiting...")
-        except ValueError:
-            fallover(f"Exiting...")
-    else:
-        journal_file = journals[0]
+        fallover(f"Journal file '{setting_journal_file}' invalid or not found")
 
 print(f"{Col.YELL}Journal file:{Col.END} {journal_file}")
 if profile: print(f"{Col.YELL}Config profile:{Col.END} {profile}")
@@ -274,11 +282,14 @@ print("\nStarting... (Press Ctrl+C to stop)\n")
 
 # Get commander name
 commander = "[Unknown]"
-with open(Path(journal_dir / journal_file), "r", encoding="utf-8") as file:
+with open(Path(journal_dir / journal_file), mode="r", encoding="utf-8") as file:
     for line in file:
-        entry = json.loads(line)
+        try:
+            entry = json.loads(line)
+        except json.JSONDecodeError as e:
+            print(f"[Commander] JSON error in {journal_file}: {e}")
         if entry["event"] == "Commander":
-            commander = str(entry["Name"]).title()
+            commander = entry["Name"]
             break
 
 # Check webhook appears valid before starting
@@ -690,7 +701,7 @@ def header():
 if __name__ == "__main__":
     try:
         # Journal preloading
-        with open(journal_dir / journal_file, encoding="utf-8") as file:
+        with open(journal_dir / journal_file, mode="r", encoding="utf-8") as file:
             for line in file:
                 processevent(line)
                 track.lines += 1
@@ -719,7 +730,7 @@ if __name__ == "__main__":
         trackingerror = None
         cooldown = WARN_COOLDOWN
         
-        with open(journal_dir / journal_file, encoding="utf-8") as file:
+        with open(journal_dir / journal_file, mode="r", encoding="utf-8") as file:
             file.seek(0, 2)
 
             while True:
