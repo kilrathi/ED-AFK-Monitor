@@ -34,6 +34,7 @@ TRUNC_FACTION = 30
 KILLS_RECENT = 10
 WARN_NOKILLS = 5	# Minutes before warning of no kills at session start
 WARN_COOLDOWN = 15	# Cooldown in minutes after a kill rate warning (doubled each time thereafter)
+UNKNOWN = "[Unknown]"
 REG_JOURNAL = r"^Journal\.\d{4}-\d{2}-\d{2}T\d{6}\.\d{2}\.log$"
 REG_WEBHOOK = r"^https:\/\/(?:canary\.|ptb\.)?discord(?:app)?\.com\/api\/webhooks\/\d+\/[A-z0-9_-]+$"
 SHIPS_EASY = ["adder", "asp", "asp_scout", "cobramkiii", "cobramkiv", "diamondback", "diamondbackxl", "eagle", "empire_courier", "empire_eagle", "krait_light", "sidewinder", "viper", "viper_mkiv"]
@@ -111,7 +112,7 @@ def getconfig(category, setting, default=None):
         return default if default is not None else None
 
 # Get settings from arguments
-profile = args.profile if args.profile is not None and args.profile in config else None
+profile = args.profile if args.profile is not None else None
 setting_fileselect = args.fileselect if args.fileselect is not None else False
 setting_journal_dir = args.journal if args.journal is not None else getconfig("Settings", "JournalFolder")
 setting_journal_file = args.setfile if args.setfile is not None else None
@@ -227,8 +228,9 @@ if not setting_journal_file:
         print(f"\nLatest journals:")
 
         # Get commander name from each journal and output list
-        commander = None
+        commanders = []
         for i, filename in enumerate(journals, start=1):
+            commander = None
             with open(Path(journal_dir / filename), mode="r", encoding="utf-8") as file:
                 for line in file:
                     try:
@@ -239,9 +241,9 @@ if not setting_journal_file:
                         commander =  entry["Name"]
                         break
 
-            if not commander: commander = "[Unknown]"
             num = f"{i:>{len(str(len(journals)))}}"
-            print(f"{num} | {filename} | CMDR {commander}")
+            print(f"{num} | {filename} | CMDR {commander if commander else UNKNOWN}")
+            commanders.append(commander)
 
         # Prompt for journal choice
         print("\nInput journal number to load")
@@ -251,46 +253,47 @@ if not setting_journal_file:
                 selection = int(selection)
                 if 1 <= selection <= MAX_FILES:
                     journal_file = journals[selection-1]
+                    track.cmdrname = commanders[selection-1]
                 else:
                     fallover(f"Invalid number, exiting...")
             except ValueError:
                 fallover(f"Exiting...")
         else:
             journal_file = journals[0]
+            track.cmdrname = commanders[0]
 elif setting_journal_file:
     # Set specific journal file
     journal_file = setting_journal_file if bool(re.search(REG_JOURNAL, setting_journal_file)) else None
     if not journal_file or not (journal_dir / journal_file).is_file():
         fallover(f"Journal file '{setting_journal_file}' invalid or not found")
 
-# Get commander name
-commander = "[Unknown]"
-with open(Path(journal_dir / journal_file), mode="r", encoding="utf-8") as file:
-    for line in file:
-        try:
-            entry = json.loads(line)
-        except json.JSONDecodeError as e:
-            print(f"[Commander] JSON error in {journal_file}: {e}")
-        if entry["event"] == "Commander":
-            commander = entry["Name"]
-            break
+# Get commander name if not already known
+if not track.cmdrname:
+    commander = UNKNOWN
+    with open(Path(journal_dir / journal_file), mode="r", encoding="utf-8") as file:
+        for line in file:
+            try:
+                entry = json.loads(line)
+            except json.JSONDecodeError as e:
+                print(f"[Commander] JSON error in {journal_file}: {e}")
+            if entry["event"] == "Commander":
+                commander = entry["Name"]
+                track.cmdrname = commander
+                break
 
-print(f"{Col.YELL}Journal file:{Col.END} {journal_file} (CMDR {commander})")
+print(f"{Col.YELL}Journal file:{Col.END} {journal_file} (CMDR {track.cmdrname if track.cmdrname else UNKNOWN})")
 
-# Check for a valid config profile
+# Check for a config profile if one is set
 config_info = ""
 if args.autoprofile:
-    if commander in config:
-        profile = commander
-        config_info = " (auto)"
-    else:
-        config_info = f" (config '{commander}' not found)"
-elif args.profile:
-    if not args.profile in config:
-        config_info = f" (config '{args.profile}' not found)"
+    profile = track.cmdrname
+    config_info = " (auto)"
+if profile and not profile in config:
+    config_info = f" (config '{profile}' not found)"
+    profile = None
 
 print(f"{Col.YELL}Config profile:{Col.END} {profile if profile else "Default"}{config_info}")
-if profile: debug(f"Profile settings: {config[profile]}")
+if profile: debug(f"Profile '{profile}': {config[profile]}")
 
 # Get settings from config
 setting_utc = getconfig("Settings", "UseUTC", False)
