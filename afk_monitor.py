@@ -87,7 +87,9 @@ else:
 parser = argparse.ArgumentParser(
     prog="ED AFK Monitor",
     description="Live monitoring of Elite Dangerous AFK sessions to terminal and Discord")
-parser.add_argument("-p", "--profile", help="Custom profile for config settings")
+profile_group = parser.add_mutually_exclusive_group()
+profile_group.add_argument("-a", "--autoprofile", action="store_true", default=None, help="Auto load settings profile by commander name")
+profile_group.add_argument("-p", "--profile", help="Load a specific profile for config settings")
 parser.add_argument("-j", "--journal", help="Override for path to journal folder")
 parser.add_argument("-w", "--webhook", help="Override for Discord webhook URL")
 parser.add_argument("-r", "--resetsession", action="store_true", default=None, help="Reset session stats after preloading")
@@ -108,27 +110,11 @@ def getconfig(category, setting, default=None):
     else:
         return default if default is not None else None
 
-# Get settings from config unless argument
-profile = args.profile if args.profile is not None else None
+# Get settings from arguments
+profile = args.profile if args.profile is not None and args.profile in config else None
 setting_fileselect = args.fileselect if args.fileselect is not None else False
 setting_journal_dir = args.journal if args.journal is not None else getconfig("Settings", "JournalFolder")
 setting_journal_file = args.setfile if args.setfile is not None else None
-setting_utc = getconfig("Settings", "UseUTC", False)
-setting_warnkillrate = getconfig("Settings", "WarnKillRate", 20)
-setting_warnnokills = getconfig("Settings", "WarnNoKills", 20)
-setting_bountyfaction = getconfig("Settings", "BountyFaction", True)
-setting_bountyvalue = getconfig("Settings", "BountyValue", False)
-setting_extendedstats = getconfig("Settings", "ExtendedStats", False)
-setting_dynamictitle = getconfig("Settings", "DynamicTitle", True)
-discord_webhook = args.webhook if args.webhook is not None else getconfig("Discord", "WebhookURL", "")
-discord_forumchannel = getconfig("Discord", "ForumChannel", False)
-discord_thread_cmdr_names = getconfig("Discord", "ThreadCmdrNames", False)
-discord_user = getconfig("Discord", "UserID", 0)
-discord_timestamp = getconfig("Discord", "Timestamp", True)
-discord_identity = getconfig("Discord", "Identity", True)
-loglevel = {}
-for level in LOGLEVEL_DEFAULTS:
-    loglevel[level] = getconfig("LogLevels", level, LOGLEVEL_DEFAULTS[level])
 discord_test = args.test if args.test is not None else DISCORD_TEST
 debug_mode = args.debug if args.debug is not None else DEBUG_MODE
 
@@ -136,7 +122,8 @@ def debug(message):
     if debug_mode:
         print(f"{Col.WHITE}[Debug]{Col.END} {message} [{datetime.strftime(datetime.now(), "%H:%M:%S")}]")
 
-debug(f"Arguments: {args}\nConfig: {config}\nJournal: {setting_journal_dir}\nWebhook: {discord_webhook}\nLog levels: {loglevel}")
+debug(f"Arguments: {args}")
+debug(f"Config: {config}")
 
 class Instance:
     def __init__(self):
@@ -276,10 +263,6 @@ elif setting_journal_file:
     if not journal_file or not (journal_dir / journal_file).is_file():
         fallover(f"Journal file '{setting_journal_file}' invalid or not found")
 
-print(f"{Col.YELL}Journal file:{Col.END} {journal_file}")
-if profile: print(f"{Col.YELL}Config profile:{Col.END} {profile}")
-print("\nStarting... (Press Ctrl+C to stop)\n")
-
 # Get commander name
 commander = "[Unknown]"
 with open(Path(journal_dir / journal_file), mode="r", encoding="utf-8") as file:
@@ -291,6 +274,44 @@ with open(Path(journal_dir / journal_file), mode="r", encoding="utf-8") as file:
         if entry["event"] == "Commander":
             commander = entry["Name"]
             break
+
+print(f"{Col.YELL}Journal file:{Col.END} {journal_file} (CMDR {commander})")
+
+# Check for a valid config profile
+config_info = ""
+if args.autoprofile:
+    if commander in config:
+        profile = commander
+        config_info = " (auto)"
+    else:
+        config_info = f" (config '{commander}' not found)"
+elif args.profile:
+    if not args.profile in config:
+        config_info = f" (config '{args.profile}' not found)"
+
+print(f"{Col.YELL}Config profile:{Col.END} {profile if profile else "Default"}{config_info}")
+if profile: debug(f"Profile settings: {config[profile]}")
+
+# Get settings from config
+setting_utc = getconfig("Settings", "UseUTC", False)
+setting_warnkillrate = getconfig("Settings", "WarnKillRate", 20)
+setting_warnnokills = getconfig("Settings", "WarnNoKills", 20)
+setting_bountyfaction = getconfig("Settings", "BountyFaction", True)
+setting_bountyvalue = getconfig("Settings", "BountyValue", False)
+setting_extendedstats = getconfig("Settings", "ExtendedStats", False)
+setting_dynamictitle = getconfig("Settings", "DynamicTitle", True)
+discord_webhook = args.webhook if args.webhook is not None else getconfig("Discord", "WebhookURL", "")
+discord_forumchannel = getconfig("Discord", "ForumChannel", False)
+discord_thread_cmdr_names = getconfig("Discord", "ThreadCmdrNames", False)
+discord_user = getconfig("Discord", "UserID", 0)
+discord_timestamp = getconfig("Discord", "Timestamp", True)
+discord_identity = getconfig("Discord", "Identity", True)
+loglevel = {}
+for level in LOGLEVEL_DEFAULTS:
+    loglevel[level] = getconfig("LogLevels", level, LOGLEVEL_DEFAULTS[level])
+
+debug(f"Log levels: {loglevel}")
+print("\nStarting... (Press Ctrl+C to stop)\n")
 
 # Check webhook appears valid before starting
 if discord_enabled and re.search(REG_WEBHOOK, discord_webhook):
