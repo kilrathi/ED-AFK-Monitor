@@ -267,21 +267,39 @@ elif setting_journal_file:
     if not journal_file or not (journal_dir / journal_file).is_file():
         fallover(f"Journal file '{setting_journal_file}' invalid or not found")
 
+print(f"{Col.YELL}Journal file:{Col.END} {journal_file}")
+
 # Get commander name if not already known
 if not track.cmdrname:
-    commander = UNKNOWN
-    with open(Path(journal_dir / journal_file), mode="r", encoding="utf-8") as file:
-        for line in file:
-            try:
+    try:
+        with open(Path(journal_dir / journal_file), mode="r", encoding="utf-8") as file:
+            for line in file:
                 entry = json.loads(line)
-            except json.JSONDecodeError as e:
-                print(f"[Commander] JSON error in {journal_file}: {e}")
-            if entry["event"] == "Commander":
-                commander = entry["Name"]
-                track.cmdrname = commander
-                break
+                if entry["event"] == "Commander":
+                    track.cmdrname = entry["Name"]
+                    break
+            
+            # If we *still* don't have a commander name wait for it
+            if not track.cmdrname:
+                print("Waiting for game load... (Press Ctrl+C to stop)")
+                file.seek(0, 2)
+                while True:
+                    line = file.readline()
+                    
+                    if not line:
+                        time.sleep(1)
+                        continue
+                    
+                    entry = json.loads(line)
+                    if entry["event"] == "Commander":
+                        track.cmdrname = entry["Name"]
+                        break
+    except json.JSONDecodeError as e:
+        print(f"[CMDR Name] JSON error in {journal_file}: {e}")
+    except(KeyboardInterrupt):
+        fallover("Quitting...")
 
-print(f"{Col.YELL}Journal file:{Col.END} {journal_file} (CMDR {track.cmdrname if track.cmdrname else UNKNOWN})")
+print(f"{Col.YELL}Commander name:{Col.END} {track.cmdrname}")
 
 # Check for a config profile if one is set
 config_info = ""
@@ -326,10 +344,10 @@ if discord_enabled and re.search(REG_WEBHOOK, discord_webhook):
         journal_start = datetime.fromisoformat(journal_file[8:-7])
         journal_start = datetime.strftime(journal_start, "%Y-%m-%d %H:%M:%S")
         if discord_thread_cmdr_names:
-            webhook.thread_name = f"{commander} {journal_start}"
+            webhook.thread_name = f"{track.cmdrname} {journal_start}"
         else:
             webhook.thread_name = journal_start
-        #debug(f"webhook.thread_name: journal_start")
+        #debug(f"webhook.thread_name: {webhook.thread_name}")
 elif discord_enabled:
     discord_enabled = False
     discord_test = False
