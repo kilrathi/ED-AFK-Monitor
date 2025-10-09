@@ -88,9 +88,7 @@ else:
 parser = argparse.ArgumentParser(
     prog="ED AFK Monitor",
     description="Live monitoring of Elite Dangerous AFK sessions to terminal and Discord")
-profile_group = parser.add_mutually_exclusive_group()
-profile_group.add_argument("-a", "--autoprofile", action="store_true", default=None, help="Auto load settings profile by commander name")
-profile_group.add_argument("-p", "--profile", help="Load a specific profile for config settings")
+parser.add_argument("-p", "--profile", help="Load a specific profile for config settings")
 parser.add_argument("-j", "--journal", help="Override for path to journal folder")
 parser.add_argument("-w", "--webhook", help="Override for Discord webhook URL")
 parser.add_argument("-r", "--resetsession", action="store_true", default=None, help="Reset session stats after preloading")
@@ -99,7 +97,6 @@ parser.add_argument("-d", "--debug", action="store_true", default=None, help="Pr
 file_group = parser.add_mutually_exclusive_group()
 file_group.add_argument("-s", "--setfile", help="Set specific journal file to use")
 file_group.add_argument("-f", "--fileselect", action="store_true", default=None, help="Show list of recent journals to chose from")
-
 args = parser.parse_args()
 
 # Get a setting from config
@@ -303,11 +300,12 @@ print(f"{Col.YELL}Commander name:{Col.END} {track.cmdrname}")
 
 # Check for a config profile if one is set
 config_info = ""
-if args.autoprofile:
+if not args.profile:
     profile = track.cmdrname
-    config_info = " (auto)"
+    if profile in config:
+        config_info = " (auto)"
 if profile and not profile in config:
-    config_info = f" (config '{profile}' not found)"
+    debug(f"No config settings for '{profile}' found")
     profile = None
 
 print(f"{Col.YELL}Config profile:{Col.END} {profile if profile else "Default"}{config_info}")
