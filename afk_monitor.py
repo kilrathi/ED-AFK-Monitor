@@ -572,7 +572,7 @@ def processevent(line):
                         msg_discord=f"{CMDRName} **Fighter destroyed!**",
                         emoji="🕹️", timestamp=logtime, loglevel=getloglevel("FighterDown"))
             case "LaunchFighter" if not j["PlayerControlled"]:
-                logevent(msg_term="{CMDRName} Fighter launched",
+                logevent(msg_term=f"{CMDRName} Fighter launched",
                         emoji="🕹️", timestamp=logtime, loglevel=2)
             case "ShieldState":
                 if j["ShieldsUp"]:
