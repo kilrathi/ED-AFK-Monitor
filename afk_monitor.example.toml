@@ -17,6 +17,9 @@ BountyValue = false
 ExtendedStats = false
 # DynamicTitle uses the window title to display some info (Default: true, only works on Windows OS)
 DynamicTitle = true
+# Show commander name in announcements
+ShowCMDR = false
+
 
 [Discord]
 # Use the settings below to enable Discord webhook integration
