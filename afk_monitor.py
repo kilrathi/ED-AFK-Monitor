@@ -328,6 +328,7 @@ discord_thread_cmdr_names = getconfig("Discord", "ThreadCmdrNames", False)
 discord_user = getconfig("Discord", "UserID", 0)
 discord_timestamp = getconfig("Discord", "Timestamp", True)
 discord_identity = getconfig("Discord", "Identity", True)
+setting_showcmdr = getconfig("Settings", "ShowCMDR", False)
 loglevel = {}
 for level in LOGLEVEL_DEFAULTS:
     loglevel[level] = getconfig("LogLevels", level, LOGLEVEL_DEFAULTS[level])
@@ -422,6 +423,10 @@ def processevent(line):
 
     try:
         logtime = datetime.fromisoformat(j["timestamp"]) if "timestamp" in j else None
+        if setting_showcmdr:
+            CMDRName = "[" + track.cmdrname + "]"
+        else:
+            CMDRName = ""
         track.thiseventtime = logtime
         match j["event"]:
             case "ShipTargeted" if "Ship" in j:
@@ -429,8 +434,8 @@ def processevent(line):
                 rank = "" if not "PilotRank" in j else f" ({j["PilotRank"]})"
                 if ship != session.lastsecurity and "PilotName" in j and "$ShipName_Police" in j["PilotName"]:
                     session.lastsecurity = ship
-                    logevent(msg_term=f"{Col.WARN}Scanned security{Col.END} ({ship})",
-                            msg_discord=f"**Scanned security** ({ship})",
+                    logevent(msg_term=f"{CMDRName} {Col.WARN}Scanned security{Col.END} ({ship})",
+                            msg_discord=f"{CMDRName} **Scanned security** ({ship})",
                             emoji="🚨", timestamp=logtime, loglevel=getloglevel("SecurityScan"))
                 elif not ship in session.scans and (j["Ship"] in SHIPS_EASY or j["Ship"] in SHIPS_HARD):
                     track.sessionstart()
@@ -445,8 +450,8 @@ def processevent(line):
                         hard = " ☠️"
                     else:
                         col = Col.WHITE
-                    logevent(msg_term=f"{col}Scan{Col.END}: {ship}{rank}",
-                            msg_discord=f"**{ship}**{hard}{rank}",
+                    logevent(msg_term=f"{CMDRName} {col}Scan{Col.END}: {ship}{rank}",
+                            msg_discord=f"{CMDRName} **{ship}**{hard}{rank}",
                             emoji="🔎", timestamp=logtime, loglevel=log)
             case "Bounty" | "FactionKillBond":
                 track.sessionstart()
@@ -493,8 +498,8 @@ def processevent(line):
                 victimfaction = j["VictimFaction_Localised"] if "VictimFaction_Localised" in j else j["VictimFaction"]
                 bountyfaction = victimfaction if len(victimfaction) <= TRUNC_FACTION+3 else f"{victimfaction[:TRUNC_FACTION].rstrip()}..."
                 bountyfaction = f" [{bountyfaction}]" if setting_bountyfaction else ""
-                logevent(msg_term=f"{col}Kill{Col.END}{kills_t}: {ship}{killtime}{bountyvalue}{bountyfaction}",
-                        msg_discord=f"{kills_d}**{ship}{hard}{killtime}**{bountyvalue}{bountyfaction}",
+                logevent(msg_term=f"{CMDRName} {col}Kill{Col.END}{kills_t}: {ship}{killtime}{bountyvalue}{bountyfaction}",
+                        msg_discord=f"{CMDRName} {kills_d}**{ship}{hard}{killtime}**{bountyvalue}{bountyfaction}",
                         emoji="💥", timestamp=logtime, loglevel=log)
                 
                 # Output stats every 10 kills
@@ -508,15 +513,15 @@ def processevent(line):
                         kills_hour_recent = f" [Last {KILLS_RECENT}: {perhour(avgsecondsrecent, 1)}/hr]"
                     else:
                         kills_hour_recent = ""
-                    logevent(msg_term=f"Session kills: {session.kills:,} ({kills_hour}/hr | {time_format(avgseconds)}/kill){kills_hour_recent}",
-                              msg_discord=f"**Session kills: {session.kills:,} ({kills_hour}/hr | {time_format(avgseconds)}/kill)**{kills_hour_recent}",
+                    logevent(msg_term=f"{CMDRName} Session kills: {session.kills:,} ({kills_hour}/hr | {time_format(avgseconds)}/kill){kills_hour_recent}",
+                              msg_discord=f"{CMDRName} **Session kills: {session.kills:,} ({kills_hour}/hr | {time_format(avgseconds)}/kill)**{kills_hour_recent}",
                             emoji="📝", timestamp=logtime, loglevel=getloglevel("SummaryKills"))
-                    logevent(msg_term=f"Session {track.killtype}: {num_format(session.bounties)} ({num_format(bounties_hour)}/hr | {num_format(avgbounty)}/kill)",
+                    logevent(msg_term=f"{CMDRName} Session {track.killtype}: {num_format(session.bounties)} ({num_format(bounties_hour)}/hr | {num_format(avgbounty)}/kill)",
                             emoji="📝", timestamp=logtime, loglevel=getloglevel("SummaryBounties"))
                     if session.merits > 0:
                         avgmerits = session.merits // session.kills
                         merits_hour = perhour(session.killstime / session.merits) if session.merits > 0 else 0
-                        logevent(msg_term=f"Session merits: {session.merits:,} ({merits_hour:,}/hr | {avgmerits:,}/kill)",
+                        logevent(msg_term=f"{CMDRName} Session merits: {session.merits:,} ({merits_hour:,}/hr | {avgmerits:,}/kill)",
                                 emoji="📝", timestamp=logtime, loglevel=getloglevel("SummaryMerits"))
                 updatetitle()
             case "MissionRedirected" if "Mission_Massacre" in j["Name"]:
@@ -528,7 +533,7 @@ def processevent(line):
                 else:
                     log = getloglevel("MissionsAll")
                     msg = "all missions!"
-                logevent(msg_term=f"Completed kills for {msg} ({missions})",
+                logevent(msg_term=f"{CMDRName} Completed kills for {msg} ({missions})",
                         emoji="✅", timestamp=logtime, loglevel=log)
                 updatetitle()
             case "ReservoirReplenished":
@@ -559,15 +564,15 @@ def processevent(line):
                 elif track.deploytime:
                     fuel_loglevel = getloglevel("FuelReport")
 
-                logevent(msg_term=f"{col}Fuel: {fuelremaining}% remaining{Col.END}{fuel_time_remain}",
-                    msg_discord=f"**Fuel{level} {fuelremaining}% remaining**{fuel_time_remain}",
+                logevent(msg_term=f"{CMDRName} {col}Fuel: {fuelremaining}% remaining{Col.END}{fuel_time_remain}",
+                    msg_discord=f"{CMDRName} **Fuel{level} {fuelremaining}% remaining**{fuel_time_remain}",
                     emoji="⛽", timestamp=logtime, loglevel=fuel_loglevel)
             case "FighterDestroyed" if track.lasteventname != "StartJump":
-                logevent(msg_term=f"{Col.BAD}Fighter destroyed!{Col.END}",
-                        msg_discord=f"**Fighter destroyed!**",
+                logevent(msg_term=f"{CMDRName} {Col.BAD}Fighter destroyed!{Col.END}",
+                        msg_discord=f"{CMDRName} **Fighter destroyed!**",
                         emoji="🕹️", timestamp=logtime, loglevel=getloglevel("FighterDown"))
             case "LaunchFighter" if not j["PlayerControlled"]:
-                logevent(msg_term="Fighter launched",
+                logevent(msg_term="{CMDRName} Fighter launched",
                         emoji="🕹️", timestamp=logtime, loglevel=2)
             case "ShieldState":
                 if j["ShieldsUp"]:
@@ -576,27 +581,27 @@ def processevent(line):
                 else:
                     shields = "down!"
                     col = Col.BAD
-                logevent(msg_term=f"{col}Ship shields {shields}{Col.END}",
-                        msg_discord=f"**Ship shields {shields}**",
+                logevent(msg_term=f"{CMDRName} {col}Ship shields {shields}{Col.END}",
+                        msg_discord=f"{CMDRName} **Ship shields {shields}**",
                         emoji="🛡️", timestamp=logtime, loglevel=getloglevel("ShipShields"))
             case "HullDamage":
                 hullhealth = round(j["Health"] * 100)
                 if j["Fighter"] and not j["PlayerPilot"] and track.fighterhull != j["Health"]:
                     track.fighterhull = j["Health"]
-                    logevent(msg_term=f"{Col.WARN}Fighter hull damaged!{Col.END} (Integrity: {hullhealth}%)",
-                        msg_discord=f"**Fighter hull damaged!** (Integrity: {hullhealth}%)",
+                    logevent(msg_term=f"{CMDRName} {Col.WARN}Fighter hull damaged!{Col.END} (Integrity: {hullhealth}%)",
+                        msg_discord=f"{CMDRName} **Fighter hull damaged!** (Integrity: {hullhealth}%)",
                         emoji="🕹️", timestamp=logtime, loglevel=getloglevel("FighterHull"))
                 elif j["PlayerPilot"] and not j["Fighter"]:
-                    logevent(msg_term=f"{Col.BAD}Ship hull damaged!{Col.END} (Integrity: {hullhealth}%)",
-                        msg_discord=f"**Ship hull damaged!** (Integrity: {hullhealth}%)",
+                    logevent(msg_term=f"{CMDRName} {Col.BAD}Ship hull damaged!{Col.END} (Integrity: {hullhealth}%)",
+                        msg_discord=f"{CMDRName} **Ship hull damaged!** (Integrity: {hullhealth}%)",
                         emoji="🛠️", timestamp=logtime, loglevel=getloglevel("ShipHull"))
             case "Died":
-                logevent(msg_term=f"{Col.BAD}Ship destroyed!{Col.END}",
-                        msg_discord="**Ship destroyed!**",
+                logevent(msg_term=f"{CMDRName} {Col.BAD}Ship destroyed!{Col.END}",
+                        msg_discord="{CMDRName} **Ship destroyed!**",
                         emoji="💀", timestamp=logtime, loglevel=getloglevel("Died"))
             case "Music" if j["MusicTrack"] == "MainMenu":
                 track.sessionend()
-                logevent(msg_term="Exited to main menu",
+                logevent(msg_term="{CMDRName} Exited to main menu",
                     emoji="🚪", timestamp=logtime, loglevel=2)
             case "LoadGame":
                 ship = j["Ship"] if "Ship_Localised" not in j else j["Ship_Localised"]
@@ -618,17 +623,17 @@ def processevent(line):
                 if any(x in j["Message"] for x in BAIT_MESSAGES):
                     session.baitfails += 1
                     baitfails = f" (x{session.baitfails})" if setting_extendedstats else ""
-                    logevent(msg_term=f"{Col.WARN}Pirate didn\"t engage due to insufficient cargo value{baitfails}{Col.END}",
-                            msg_discord=f"**Pirate didn\"t engage due to insufficient cargo value**{baitfails}",
+                    logevent(msg_term=f"{CMDRName} {Col.WARN}Pirate didn\"t engage due to insufficient cargo value{baitfails}{Col.END}",
+                            msg_discord=f"{CMDRName} **Pirate didn\"t engage due to insufficient cargo value**{baitfails}",
                             emoji="🎣", timestamp=logtime, loglevel=getloglevel("BaitValueLow"), event="BaitValueLow")
                 elif "Police_Attack" in j["Message"]:
-                    logevent(msg_term=f"{Col.BAD}Under attack by security services!{Col.END}",
-                            msg_discord=f"**Under attack by security services!**",
+                    logevent(msg_term=f"{CMDRName} {Col.BAD}Under attack by security services!{Col.END}",
+                            msg_discord=f"{CMDRName} **Under attack by security services!**",
                             emoji="🚨", timestamp=logtime, loglevel=getloglevel("SecurityAttack"))
             case "EjectCargo" if not j["Abandoned"] and j["Count"] == 1:
                 name = j["Type_Localised"] if "Type_Localised" in j else j["Type"].title()
-                logevent(msg_term=f"{Col.BAD}Cargo stolen!{Col.END} ({name})",
-                        msg_discord=f"**Cargo stolen!** ({name})",
+                logevent(msg_term=f"{CMDRName} {Col.BAD}Cargo stolen!{Col.END} ({name})",
+                        msg_discord=f"{CMDRName} **Cargo stolen!** ({name})",
                         emoji="📦", timestamp=logtime, loglevel=getloglevel("CargoLost"), event="CargoLost")
             case "Rank":
                 track.cmdrcombatrank = j["Combat"]
@@ -641,36 +646,36 @@ def processevent(line):
                     if "Mission_Massacre" in mission["Name"] and mission["Expires"] > 0:
                         track.missionsactive.append(mission["MissionID"])
                 track.missions = True
-                logevent(msg_term=f"Missions loaded (active massacres: {len(track.missionsactive)})",
+                logevent(msg_term=f"{CMDRName} Missions loaded (active massacres: {len(track.missionsactive)})",
                         emoji="🎯", timestamp=logtime, loglevel=getloglevel("Missions"))
             case "MissionAccepted" if "Mission_Massacre" in j["Name"] and track.missions:
                 track.missionsactive.append(j["MissionID"])
-                logevent(msg_term=f"Accepted massacre mission (active: {len(track.missionsactive)})",
+                logevent(msg_term=f"{CMDRName} Accepted massacre mission (active: {len(track.missionsactive)})",
                         emoji="🎯", timestamp=logtime, loglevel=getloglevel("Missions"))
             case "MissionAbandoned" | "MissionCompleted" | "MissionFailed" if track.missions and j["MissionID"] in track.missionsactive:
                 track.missionsactive.remove(j["MissionID"])
                 if track.missionredirects > 0: track.missionredirects -= 1
                 event = j["event"][7:].lower()
-                logevent(msg_term=f"Massacre mission {event} (active: {len(track.missionsactive)})",
+                logevent(msg_term=f"{CMDRName} Massacre mission {event} (active: {len(track.missionsactive)})",
                         emoji="🎯", timestamp=logtime, loglevel=getloglevel("Missions"))
             case "PowerplayMerits":
                 if session.meritstoreport > 0 and j["MeritsGained"] < 500:
                     session.merits += j["MeritsGained"]
                     track.totalmerits += j["MeritsGained"]
-                    logevent(msg_term=f"Merits: +{j["MeritsGained"]} ({j["Power"]})",
+                    logevent(msg_term=f"{CMDRName} Merits: +{j["MeritsGained"]} ({j["Power"]})",
                              emoji="🎫", timestamp=logtime, loglevel=getloglevel("Merits"))
                     session.meritstoreport -= 1
             case "Location" if j["BodyType"] == "PlanetaryRing":
                 track.sessionstart()
                 debug(f"Deploy time by location (planetary ring) {track.deploytime}")
             case "Shutdown":
-                logevent(msg_term="Quit to desktop",
+                logevent(msg_term="{CMDRName} Quit to desktop",
                         emoji="🛑", timestamp=logtime, loglevel=2)
                 if __name__ == "__main__": sys.exit()
             case "SupercruiseEntry" | "FSDJump":
                 event = "Supercruise entry in" if j["event"] == "SupercruiseEntry" else "FSD jump to"
                 #debug(f"{event} {j["StarSystem"]}")
-                logevent(msg_term=f"{event} {j["StarSystem"]}",
+                logevent(msg_term=f"{CMDRName} {event} {j["StarSystem"]}",
                         emoji="🚀", timestamp=logtime, loglevel=2)
                 track.sessionend()
         track.lasteventname = j["event"]
